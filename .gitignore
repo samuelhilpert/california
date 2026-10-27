@@ -1,0 +1,21 @@
+node_modules
+dist
+*.local
+.DS_Store
+.idea
+~$*.xlsx
+
+# Persönliche Daten nicht ins Repository
+*.xlsx
+!e2e/fixtures/*.xlsx
+.env
+.env.*
+!.env.example
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+# Playwright
+test-results/
+playwright-report/
