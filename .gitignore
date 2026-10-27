@@ -19,3 +19,6 @@ ui-debug.log
 # Playwright
 test-results/
 playwright-report/
+!.env.emulator
+dist-e2e
+e2e/.tmp/

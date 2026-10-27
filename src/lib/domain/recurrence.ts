@@ -1,3 +1,4 @@
+import { allocateCents } from './allocate'
 import { addMonths, monthKey, parseIso, yearKey } from './dates'
 import type { CostEntry, Expense, IsoDate } from './types'
 
@@ -22,9 +23,10 @@ export function expandExpense(expense: Expense, horizon: IsoDate): CostEntry[] {
     amountCents: expense.amountCents,
     allocation: expense.allocation,
     directPersonIds: expense.allocation === 'direct' ? [...(expense.directPersonIds ?? [])] : [],
+    ...(expense.paidBy ? { paidBy: expense.paidBy } : {}),
   }
   const rec = expense.recurrence
-  if (!rec) return [{ ...base, id: expense.id, date: expense.date }]
+  if (!rec) return spread([{ ...base, id: expense.id, date: expense.date }], expense.spreadMonths)
 
   const step = rec.frequency === 'monthly' ? 1 : 12
   const anchorDay = parseIso(expense.date).day
@@ -41,7 +43,26 @@ export function expandExpense(expense: Expense, horizon: IsoDate): CostEntry[] {
     seen.add(period)
     out.push({ ...base, id: `${expense.id}#${period}`, period, date })
   }
-  return out
+  return spread(out, expense.spreadMonths)
+}
+
+/**
+ * Verteilt jede Buchung centgenau auf `months` aufeinanderfolgende Monate (ab dem Monat der Fälligkeit).
+ * Die Teilbuchungen erhalten stabile IDs `<buchungs-id>@<JJJJ-MM>` und das Datum des jeweils
+ * Ersten des Monats (im ersten Monat das Fälligkeitsdatum).
+ */
+function spread(entries: CostEntry[], months?: number): CostEntry[] {
+  if (!months || months <= 1) return entries
+  const n = Math.min(Math.floor(months), 120)
+  return entries.flatMap((e) => {
+    const parts = allocateCents(e.amountCents, Array(n).fill(1))
+    const first = `${e.date.slice(0, 7)}-01`
+    return parts.map((cents, i) => {
+      const date = i === 0 ? e.date : addMonths(first, i)
+      const period = monthKey(date)
+      return { ...e, id: `${e.id}@${period}`, period, date, amountCents: cents, spread: { index: i + 1, of: n } }
+    })
+  })
 }
 
 export function expandExpenses(expenses: Expense[], horizon: IsoDate): CostEntry[] {
@@ -51,9 +72,10 @@ export function expandExpenses(expenses: Expense[], horizon: IsoDate): CostEntry
 /** Gesamtsumme einer Ausgabe über die volle Laufzeit (nur bei begrenzten Wiederholungen eindeutig). */
 export function describeRecurrence(expense: Expense): string {
   const r = expense.recurrence
-  if (!r) return 'Einmalig'
+  const sp = expense.spreadMonths && expense.spreadMonths > 1 ? `, verteilt auf ${expense.spreadMonths} Monate` : ''
+  if (!r) return `Einmalig${sp}`
   const f = r.frequency === 'monthly' ? 'monatlich' : 'jährlich'
-  if (r.count) return `${f}, ${r.count}×`
-  if (r.until) return `${f} bis ${r.until.split('-').reverse().join('.')}`
-  return `${f}, unbefristet`
+  if (r.count) return `${f}, ${r.count}×${sp}`
+  if (r.until) return `${f} bis ${r.until.split('-').reverse().join('.')}${sp}`
+  return `${f}, unbefristet${sp}`
 }

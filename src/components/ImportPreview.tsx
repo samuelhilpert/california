@@ -4,7 +4,7 @@ import { CheckCircle2, Copy, AlertTriangle, XCircle, UserPlus, User } from 'luci
 import type { Category } from '../lib/domain/types'
 import type { ImportPreview, ImportRow, RowStatus } from '../lib/io/excelImport'
 import { applyImport } from '../lib/io/importApply'
-import { db } from '../lib/db/db'
+import { useSession } from '../lib/store/context'
 import { isIsoDate } from '../lib/domain/dates'
 import { formatDate, formatEuro, formatKm } from '../lib/format'
 import { Badge, Button, Input, Modal, Notice } from './ui'
@@ -28,6 +28,8 @@ function initialSelection<T>(rows: ImportRow<T>[]): Set<string> {
 
 export function ImportPreviewModal({ preview, categories, onClose }: { preview: ImportPreview; categories: Category[]; onClose: () => void }) {
   const { toast } = useFeedback()
+  const { store } = useSession()
+  const [dateOverrides, setDateOverrides] = useState<Record<string, string>>({})
   const [tab, setTab] = useState<'trips' | 'expenses' | 'persons'>('trips')
   const [tripSel, setTripSel] = useState(() => initialSelection(preview.trips))
   const [expSel, setExpSel] = useState(() => initialSelection(preview.expenses))
@@ -46,6 +48,7 @@ export function ImportPreviewModal({ preview, categories, onClose }: { preview: 
 
   const selectedExpenses = preview.expenses.filter((r) => expSel.has(r.rowId))
   const missingDate = selectedExpenses.some((r) => !r.draft?.date && !isIsoDate(startDates[r.rowId] ?? ''))
+  const badOverride = Object.entries(dateOverrides).some(([id, d]) => tripSel.has(id) && !isIsoDate(d))
   const selectedDupes = [...preview.trips, ...preview.expenses].filter((r) => r.status === 'duplicate' && (tripSel.has(r.rowId) || expSel.has(r.rowId))).length
   const newPersons = preview.persons.filter((p) => !p.existingId)
   const nothing = tripSel.size + expSel.size === 0 && newPersons.length === 0
@@ -53,7 +56,7 @@ export function ImportPreviewModal({ preview, categories, onClose }: { preview: 
   const runImport = async () => {
     setBusy(true)
     try {
-      const r = await applyImport(preview, { tripRowIds: [...tripSel], expenseRowIds: [...expSel], expenseStartDates: startDates }, db)
+      const r = await applyImport(preview, { tripRowIds: [...tripSel], expenseRowIds: [...expSel], expenseStartDates: startDates, tripDateOverrides: dateOverrides }, store)
       const parts = [
         `${r.tripsAdded} Fahrt(en)`,
         `${r.expensesAdded} Ausgabe(n)`,
@@ -87,7 +90,7 @@ export function ImportPreviewModal({ preview, categories, onClose }: { preview: 
             {tripSel.size} Fahrt(en), {expSel.size} Ausgabe(n) ausgewählt{newPersons.length > 0 && ` · ${newPersons.length} neue Person(en)`}
           </span>
           <Button onClick={onClose}>Abbrechen</Button>
-          <Button variant="primary" onClick={() => void runImport()} disabled={busy || missingDate || nothing}>
+          <Button variant="primary" onClick={() => void runImport()} disabled={busy || missingDate || badOverride || nothing}>
             {busy ? 'Importiere …' : 'Auswahl importieren'}
           </Button>
         </>
@@ -142,14 +145,24 @@ export function ImportPreviewModal({ preview, categories, onClose }: { preview: 
                       </td>
                       <td className="px-3 py-2.5 text-slate-500">{r.rowNumber}</td>
                       <td className="px-3 py-2.5"><StatusBadge status={r.status} /></td>
-                      <td className="whitespace-nowrap px-3 py-2.5">{r.draft ? <>{formatDate(r.draft.startDate)}{r.draft.endDate && ` – ${formatDate(r.draft.endDate)}`}</> : <span className="text-slate-400">{Object.values(r.raw)[0] || '–'}</span>}</td>
+                      <td className="whitespace-nowrap px-3 py-2.5">
+                        {r.draft && r.status !== 'duplicate' ? (
+                          <>
+                            <Input type="date" aria-label={`Datum Zeile ${r.rowNumber}`} className="h-9 w-40" value={dateOverrides[r.rowId] ?? r.draft.startDate}
+                              invalid={dateOverrides[r.rowId] != null && !isIsoDate(dateOverrides[r.rowId])}
+                              onChange={(e) => setDateOverrides({ ...dateOverrides, [r.rowId]: e.target.value })} />
+                            {dateOverrides[r.rowId] && dateOverrides[r.rowId] !== r.draft.startDate && <div className="mt-0.5 text-xs text-brand-700">korrigiert (Excel: {formatDate(r.draft.startDate)})</div>}
+                            {r.draft.endDate && <div className="mt-0.5 text-xs text-slate-500">bis {formatDate(r.draft.endDate)}</div>}
+                          </>
+                        ) : r.draft ? formatDate(r.draft.startDate) : <span className="text-slate-500">{Object.values(r.raw)[0] || '–'}</span>}
+                      </td>
                       <td className="tabular whitespace-nowrap px-3 py-2.5 text-right">
                         {r.draft ? formatKm(r.draft.km) : '–'}
-                        {r.draft?.odoStart != null && <div className="text-xs text-slate-400">{r.draft.odoStart} → {r.draft.odoEnd}</div>}
+                        {r.draft?.odoStart != null && <div className="text-xs text-slate-500">{r.draft.odoStart} → {r.draft.odoEnd}</div>}
                       </td>
                       <td className="px-3 py-2.5">{r.draft?.personNames.join(', ') || '–'}</td>
                       <td className="max-w-md px-3 py-2.5 text-xs">
-                        {r.messages.length === 0 ? <span className="text-slate-400">–</span> : <ul className="list-disc space-y-0.5 pl-4">{r.messages.map((m) => <li key={m}>{m}</li>)}</ul>}
+                        {r.messages.length === 0 ? <span className="text-slate-500">–</span> : <ul className="list-disc space-y-0.5 pl-4">{r.messages.map((m) => <li key={m}>{m}</li>)}</ul>}
                       </td>
                     </tr>
                   ))}
@@ -188,7 +201,7 @@ export function ImportPreviewModal({ preview, categories, onClose }: { preview: 
                         <td className="px-3 py-2.5"><StatusBadge status={r.status} /></td>
                         <td className="px-3 py-2.5">
                           <div className="font-medium">{d?.title ?? r.raw.Bezeichnung}</div>
-                          {d && <div className="text-xs text-slate-500">{catName.get(d.categoryId)}</div>}
+                          {d && <div className="text-xs text-slate-500">{catName.get(d.categoryId)}{d.paidByName && ` · bezahlt von ${d.paidByName}`}{d.spreadMonths && ` · auf ${d.spreadMonths} Monate verteilt`}</div>}
                         </td>
                         <td className="tabular whitespace-nowrap px-3 py-2.5 text-right">
                           {d ? formatEuro(d.amountCents) : '–'}
@@ -203,7 +216,7 @@ export function ImportPreviewModal({ preview, categories, onClose }: { preview: 
                           ) : '–'}
                         </td>
                         <td className="max-w-sm px-3 py-2.5 text-xs">
-                          {r.messages.length === 0 ? <span className="text-slate-400">–</span> : <ul className="list-disc space-y-0.5 pl-4">{r.messages.map((m) => <li key={m}>{m}</li>)}</ul>}
+                          {r.messages.length === 0 ? <span className="text-slate-500">–</span> : <ul className="list-disc space-y-0.5 pl-4">{r.messages.map((m) => <li key={m}>{m}</li>)}</ul>}
                         </td>
                       </tr>
                     )
@@ -221,7 +234,7 @@ export function ImportPreviewModal({ preview, categories, onClose }: { preview: 
               {preview.persons.map((p) => (
                 <li key={p.name} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
                   <span className="flex items-center gap-2 font-medium">
-                    {p.existingId ? <User className="h-4 w-4 text-slate-400" /> : <UserPlus className="h-4 w-4 text-brand-700" />}
+                    {p.existingId ? <User className="h-4 w-4 text-slate-500" /> : <UserPlus className="h-4 w-4 text-brand-700" />}
                     {p.name}
                   </span>
                   <span className="flex items-center gap-2">

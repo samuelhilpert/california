@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Pencil, Plus, Trash2, UserCheck, UserX, Users } from 'lucide-react'
-import { useAppData } from '../lib/db/hooks'
-import { addPerson, deletePerson, renamePerson, setPersonActive } from '../lib/db/repo'
+import { useAppData } from '../lib/store/context'
+import { addPerson, deletePerson, renamePerson, restoreRecord, setPersonActive } from '../lib/store/repo'
 import { buildSettlement } from '../lib/domain/settlement'
 import { todayIso } from '../lib/domain/dates'
 import type { Person } from '../lib/domain/types'
@@ -25,7 +25,8 @@ export function PeoplePage() {
 
   const usage = (id: string) => ({
     trips: data.trips.filter((t) => t.personIds.includes(id)).length,
-    expenses: data.expenses.filter((e) => e.directPersonIds?.includes(id)).length,
+    expenses: data.expenses.filter((e) => e.directPersonIds?.includes(id) || e.paidBy === id).length,
+    payments: data.payments.filter((p) => p.fromPersonId === id || p.toPersonId === id).length,
   })
   const active = data.persons.filter((p) => p.active)
   const inactive = data.persons.filter((p) => !p.active)
@@ -66,8 +67,8 @@ export function PeoplePage() {
     const ok = await confirm({ title: `${p.name} löschen?`, message: 'Die Person wird keiner Fahrt zugeordnet und kann daher endgültig gelöscht werden.', confirmLabel: 'Löschen', danger: true })
     if (!ok) return
     try {
-      await deletePerson(p.id)
-      toast(`${p.name} wurde gelöscht.`)
+      const removed = await deletePerson(p.id)
+      toast(`${p.name} wurde gelöscht.`, 'success', { label: 'Rückgängig', onClick: async () => { await restoreRecord('persons', removed); toast(`${p.name} wurde wiederhergestellt.`) } })
     } catch (e) {
       toast(errorMessage(e), 'error')
     }
@@ -78,17 +79,17 @@ export function PeoplePage() {
       {list.map((p) => {
         const u = usage(p.id)
         const r = s.persons.find((x) => x.personId === p.id)
-        const used = u.trips + u.expenses > 0
+        const used = u.trips + u.expenses + u.payments > 0
         return (
           <li key={p.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center">
             <div className="flex min-w-0 flex-1 items-center gap-3">
-              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${p.active ? 'bg-brand-50 text-brand-800' : 'bg-slate-100 text-slate-400'}`}>
+              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${p.active ? 'bg-brand-50 text-brand-800' : 'bg-slate-100 text-slate-500'}`}>
                 {p.name.slice(0, 2).toUpperCase()}
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 font-medium text-slate-900">{p.name}{!p.active && <Badge>deaktiviert</Badge>}</div>
                 <div className="text-xs text-slate-500">
-                  {u.trips} Fahrt(en){u.expenses > 0 && ` · ${u.expenses} Direktkosten`}
+                  {u.trips} Fahrt(en){u.expenses > 0 && ` · ${u.expenses} Ausgabe(n)`}{u.payments > 0 && ` · ${u.payments} Zahlung(en)`}
                   {r && ` · ${formatKm(r.km)} anteilig · ${formatEuro(r.totalCents)} gesamt`}
                 </div>
               </div>

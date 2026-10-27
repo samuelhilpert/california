@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight, Car, Coins, FileSpreadsheet, Gauge, Plus, Receipt, Route, Users } from 'lucide-react'
-import { useAppData, useSetting } from '../lib/db/hooks'
+import { useAppData, useSetting } from '../lib/store/context'
 import { buildSettlement, personRows } from '../lib/domain/settlement'
 import { todayIso } from '../lib/domain/dates'
 import { formatDate, formatEuro, formatKm, formatPricePerKm, formatStamp, formatInt, formatPercent } from '../lib/format'
@@ -15,10 +15,19 @@ export function DashboardPage() {
   const lastBackup = useSetting<string>('lastBackupAt')
   const [tripOpen, setTripOpen] = useState(false)
   const [expenseOpen, setExpenseOpen] = useState(false)
+  const [nowMs] = useState(() => Date.now())
   const today = todayIso()
 
   const s = useMemo(() => (data ? buildSettlement(data, { period: { kind: 'all' }, today }) : undefined), [data, today])
   if (!data || !s) return <Loading />
+
+  const allIssues = s.odometerIssues
+  const gapKm = allIssues.filter((i) => i.type === 'gap').reduce((a, i) => a + i.km, 0)
+  // Backup-Erinnerung: noch nie, oder älter als 30 Tage und seitdem geändert
+  const lastChange = [...data.trips, ...data.expenses, ...data.payments].reduce((m, x) => (x.updatedAt > m ? x.updatedAt : m), '')
+  const backupAgeDays = lastBackup ? (nowMs - new Date(lastBackup).getTime()) / 86400000 : Infinity
+  const backupDue = !lastBackup || (backupAgeDays > 30 && lastChange > lastBackup)
+  const openTransfers = s.balance.transfers
 
   const rows = personRows(s, data.persons)
   const catName = new Map(data.categories.map((c) => [c.id, c]))
@@ -57,12 +66,19 @@ export function DashboardPage() {
         </Card>
       ) : (
         <div className="space-y-6">
-          {!lastBackup && (
-            <Notice level="warning" title="Noch kein Backup erstellt">
-              Die Daten liegen nur in diesem Browser. <Link to="/daten" className="font-medium underline">Jetzt ein Backup herunterladen</Link>, damit beim Löschen des Browserspeichers nichts verloren geht.
+          {backupDue && (
+            <Notice level="info" title={lastBackup ? `Letztes Backup vor ${Math.floor(backupAgeDays)} Tagen` : 'Noch kein Backup erstellt'}>
+              Die Daten sind in der Cloud gespeichert. Ein zusätzliches Backup schützt vor versehentlichem Löschen oder Überschreiben.{' '}
+              <Link to="/daten" className="font-medium underline">Backup herunterladen</Link>
             </Notice>
           )}
-          {s.notices.filter((n) => n.level !== 'info').map((n) => (
+          {gapKm > 0 && (
+            <Notice level="warning" title={`${formatKm(gapKm)} nicht im Fahrtenbuch erfasst`}>
+              Zwischen den Kilometerständen gibt es Lücken. Diese Kilometer zahlt niemand – sie erhöhen den Kilometerpreis für alle.{' '}
+              <Link to="/fahrten" className="font-medium underline">Lücken ansehen und nachtragen</Link>
+            </Notice>
+          )}
+          {s.notices.filter((n) => n.level !== 'info' && !n.code.startsWith('odometer')).map((n) => (
             <Notice key={n.code} level={n.level}>{n.message}</Notice>
           ))}
 
@@ -86,7 +102,7 @@ export function DashboardPage() {
                   {rows.map((r) => (
                     <li key={r.personId}>
                       <div className="mb-1.5 flex items-baseline justify-between gap-3 text-sm">
-                        <span className="font-medium text-slate-800">{r.name}{!r.active && <span className="ml-1.5 text-xs font-normal text-slate-400">(inaktiv)</span>}</span>
+                        <span className="font-medium text-slate-800">{r.name}{!r.active && <span className="ml-1.5 text-xs font-normal text-slate-500">(inaktiv)</span>}</span>
                         <span className="tabular font-semibold text-slate-900">{formatEuro(r.totalCents)}</span>
                       </div>
                       <Bar value={r.totalCents} max={maxShare} />
@@ -127,6 +143,22 @@ export function DashboardPage() {
             </Card>
           </div>
 
+          {openTransfers.length > 0 && (
+            <Card>
+              <CardTitle sub="Gesamter Zeitraum, nach erfassten Zahlern und Ausgleichszahlungen" action={<Link to="/abrechnung" className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:underline">Zum Ausgleich <ArrowRight className="h-3.5 w-3.5" /></Link>}>
+                Offener Ausgleich
+              </CardTitle>
+              <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {openTransfers.map((t) => (
+                  <li key={`${t.fromPersonId}-${t.toPersonId}`} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                    <span><strong>{pName.get(t.fromPersonId) ?? '?'}</strong> → <strong>{pName.get(t.toPersonId) ?? '?'}</strong></span>
+                    <span className="tabular font-semibold">{formatEuro(t.amountCents)}</span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+
           <Card padded={false}>
             <div className="p-5 pb-0">
               <CardTitle action={<Link to="/fahrten" className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:underline">Alle Fahrten <ArrowRight className="h-3.5 w-3.5" /></Link>}>
@@ -160,11 +192,11 @@ export function DashboardPage() {
               </ul>
             )}
           </Card>
-          {lastBackup && <p className="text-xs text-slate-400">Letztes Backup: {formatStamp(lastBackup)}</p>}
+          {lastBackup && <p className="text-xs text-slate-500">Letztes Backup: {formatStamp(lastBackup)}</p>}
         </div>
       )}
 
-      <TripFormModal open={tripOpen} onClose={() => setTripOpen(false)} persons={data.persons} trips={data.trips} />
+      <TripFormModal open={tripOpen} onClose={() => setTripOpen(false)} persons={data.persons} trips={data.trips} settlements={data.settlements} />
       <ExpenseFormModal open={expenseOpen} onClose={() => setExpenseOpen(false)} categories={data.categories} persons={data.persons} />
     </>
   )

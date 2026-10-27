@@ -61,7 +61,7 @@ export function expensesSheet(expenses: Expense[], categories: Category[], perso
   const cm = new Map(categories.map((c) => [c.id, c.name]))
   const pm = new Map(persons.map((p) => [p.id, p]))
   const rows: CellValue[][] = [
-    ['Bezeichnung', 'Kategorie', 'Betrag', 'Anzahl', 'Datum', 'Wiederholung', 'Verteilung', 'Direkt verteilt auf', 'Notiz'],
+    ['Bezeichnung', 'Kategorie', 'Betrag', 'Anzahl', 'Datum', 'Wiederholung', 'Verteilt auf Monate', 'Bezahlt von', 'Verteilung', 'Direkt verteilt auf', 'Notiz'],
     ...[...expenses]
       .sort((a, b) => (a.date < b.date ? -1 : 1))
       .map((e) => [
@@ -71,12 +71,14 @@ export function expensesSheet(expenses: Expense[], categories: Category[], perso
         e.recurrence?.count ?? (e.recurrence ? null : 1),
         date(e.date),
         e.recurrence ? (e.recurrence.frequency === 'monthly' ? 'monatlich' : 'jährlich') + (e.recurrence.until ? ` bis ${e.recurrence.until.split('-').reverse().join('.')}` : '') : 'einmalig',
+        e.spreadMonths ?? null,
+        e.paidBy ? pm.get(e.paidBy)?.name ?? 'Unbekannt' : null,
         e.allocation === 'perKm' ? 'über Kilometerpreis' : 'direkt',
         e.allocation === 'direct' ? names(e.directPersonIds ?? [], pm) : null,
         e.note ?? null,
       ]),
   ]
-  return sheet(rows, [28, 22, 12, 8, 12, 22, 20, 26, 30])
+  return sheet(rows, [28, 22, 12, 8, 12, 22, 12, 16, 20, 26, 30])
 }
 
 export function personsSheet(persons: Person[]): XLSX.WorkSheet {
@@ -144,6 +146,22 @@ export function buildSettlementWorkbook(s: Settlement, data: { persons: Person[]
   ]
   XLSX.utils.book_append_sheet(wb, sheet(personSheet, [22, 12, 10, 20, 22, 20, 20]), 'Personenanteile')
 
+  // Ausgleich
+  const bal = s.balance
+  const balanceRows: CellValue[][] = [
+    ['Person', 'Bezahlt', 'Kostenanteil', 'Ausgleich gezahlt', 'Ausgleich erhalten', 'Saldo (+ bekommt / − zahlt)'],
+    ...bal.balances.map((b) => [pm.get(b.personId)?.name ?? 'Unbekannt', eur(b.paidCents), eur(b.shareCents), eur(b.sentCents), eur(b.receivedCents), eur(b.balanceCents)]),
+    [],
+    ['Vorgeschlagene Ausgleichszahlungen'],
+    ...(bal.transfers.length ? bal.transfers.map((t) => [`${pm.get(t.fromPersonId)?.name ?? '?'} → ${pm.get(t.toPersonId)?.name ?? '?'}`, eur(t.amountCents)]) : [['Keine – alle Salden sind ausgeglichen.']]),
+  ]
+  if (bal.unpaidCostCents) balanceRows.push([], ['Kosten ohne angegebenen Zahler', eur(bal.unpaidCostCents)])
+  if (s.payments.length) {
+    balanceRows.push([], ['Erfasste Ausgleichszahlungen im Zeitraum'], ['Datum', 'Von', 'An', 'Betrag', 'Notiz'])
+    for (const p of s.payments) balanceRows.push([date(p.date), pm.get(p.fromPersonId)?.name ?? '?', pm.get(p.toPersonId)?.name ?? '?', eur(p.amountCents), p.note ?? null])
+  }
+  XLSX.utils.book_append_sheet(wb, sheet(balanceRows, [26, 14, 14, 16, 16, 24]), 'Ausgleich')
+
   // Fahrten
   const tripRows: CellValue[][] = [['Datum', 'Bis', 'Strecke', 'Kilometer', 'Fahrtkosten', 'Beteiligte', 'Person', 'Anteilige km', 'Anteil']]
   for (const tr of s.trips) {
@@ -169,18 +187,19 @@ export function buildSettlementWorkbook(s: Settlement, data: { persons: Person[]
 
   // Kosten
   const costRows: CellValue[][] = [
-    ['Datum', 'Bezeichnung', 'Kategorie', 'Periode', 'Wiederholung', 'Verteilung', 'Betrag'],
+    ['Datum', 'Bezeichnung', 'Kategorie', 'Periode', 'Wiederholung', 'Verteilung', 'Betrag', 'Bezahlt von'],
     ...s.costs.map((c) => [
       date(c.date), c.title, cm.get(c.categoryId) ?? c.categoryId, c.period ?? null,
       em.get(c.expenseId) ? describeRecurrence(em.get(c.expenseId)!) : null,
       c.allocation === 'perKm' ? 'über Kilometerpreis' : `direkt: ${names(c.directPersonIds, pm)}`, eur(c.amountCents),
+      c.paidBy ? pm.get(c.paidBy)?.name ?? 'Unbekannt' : null,
     ]),
     ['Summe', null, null, null, null, null, eur(s.totalCostCents)],
     [],
     ['Kategorie', 'Über Kilometerpreis', 'Direkt', 'Gesamt'],
     ...s.categories.map((c) => [cm.get(c.categoryId) ?? c.categoryId, eur(c.perKmCents), eur(c.directCents), eur(c.totalCents)]),
   ]
-  XLSX.utils.book_append_sheet(wb, sheet(costRows, [12, 28, 22, 10, 20, 26, 14]), 'Kosten')
+  XLSX.utils.book_append_sheet(wb, sheet(costRows, [12, 28, 22, 10, 20, 26, 14, 16]), 'Kosten')
 
   // Berechnungsgrundlagen
   const basis: CellValue[][] = [

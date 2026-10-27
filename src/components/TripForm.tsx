@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react'
 import { ArrowRight, Calculator } from 'lucide-react'
-import type { Person, Trip } from '../lib/domain/types'
+import type { Person, SettlementSnapshot, Trip } from '../lib/domain/types'
+import { findSimilarTrips } from '../lib/domain/tripChecks'
+import { inRange, resolvePeriod } from '../lib/domain/period'
 import { parseNumberInput } from '../lib/domain/money'
 import { resolveTripKm, validateTrip, hasErrors, type FieldErrors, type TripDraft } from '../lib/domain/validation'
-import { saveTrip, ValidationError } from '../lib/db/repo'
+import { saveTrip, ValidationError } from '../lib/store/repo'
 import { todayIso } from '../lib/domain/dates'
-import { formatInt, numberToInput } from '../lib/format'
-import { Button, Field, Input, Modal, Textarea } from './ui'
+import { formatDate, formatInt, formatKm, numberToInput } from '../lib/format'
+import { Button, Field, Input, Modal, Notice, Textarea } from './ui'
 import { PersonMultiSelect } from './PersonMultiSelect'
 import { errorMessage, useFeedback } from './feedback-context'
 
@@ -16,31 +18,36 @@ interface Props {
   trip?: Trip
   persons: Person[]
   trips: Trip[]
+  /** Abgeschlossene Abrechnungen – für den Hinweis bei Änderungen in einem abgeschlossenen Zeitraum. */
+  settlements?: SettlementSnapshot[]
+  /** Vorbelegung für eine neue Fahrt (z. B. beim Nachtragen einer Kilometerlücke). */
+  prefill?: Partial<Trip>
 }
 
 export function TripFormModal(props: Props) {
   // Neu mounten, wenn sich die bearbeitete Fahrt ändert – damit der Formularzustand frisch ist.
   if (!props.open) return null
-  return <TripForm key={props.trip?.id ?? 'new'} {...props} />
+  return <TripForm key={props.trip?.id ?? JSON.stringify(props.prefill ?? 'new')} {...props} />
 }
 
-function TripForm({ onClose, trip, persons, trips }: Props) {
-  const { toast } = useFeedback()
+function TripForm({ onClose, trip, persons, trips, settlements = [], prefill }: Props) {
+  const { toast, confirm } = useFeedback()
+  const init = trip ?? prefill
   const lastOdo = useMemo(() => {
     const withOdo = trips.filter((t) => t.odoEnd != null && t.id !== trip?.id)
     withOdo.sort((a, b) => (a.startDate === b.startDate ? (a.odoEnd! - b.odoEnd!) : a.startDate < b.startDate ? -1 : 1))
     return withOdo.at(-1)?.odoEnd
   }, [trips, trip])
 
-  const [startDate, setStartDate] = useState(trip?.startDate ?? todayIso())
-  const [endDate, setEndDate] = useState(trip?.endDate ?? '')
-  const [from, setFrom] = useState(trip?.from ?? '')
-  const [to, setTo] = useState(trip?.to ?? '')
-  const [odoStart, setOdoStart] = useState(numberToInput(trip?.odoStart))
-  const [odoEnd, setOdoEnd] = useState(numberToInput(trip?.odoEnd))
-  const [kmInput, setKmInput] = useState(numberToInput(trip?.km))
-  const [personIds, setPersonIds] = useState<string[]>(trip?.personIds ?? [])
-  const [note, setNote] = useState(trip?.note ?? '')
+  const [startDate, setStartDate] = useState(init?.startDate ?? todayIso())
+  const [endDate, setEndDate] = useState(init?.endDate ?? '')
+  const [from, setFrom] = useState(init?.from ?? '')
+  const [to, setTo] = useState(init?.to ?? '')
+  const [odoStart, setOdoStart] = useState(numberToInput(init?.odoStart))
+  const [odoEnd, setOdoEnd] = useState(numberToInput(init?.odoEnd))
+  const [kmInput, setKmInput] = useState(numberToInput(init?.km))
+  const [personIds, setPersonIds] = useState<string[]>(init?.personIds ?? [])
+  const [note, setNote] = useState(init?.note ?? '')
   const [errors, setErrors] = useState<FieldErrors>({})
   const [saving, setSaving] = useState(false)
 
@@ -49,6 +56,8 @@ function TripForm({ onClose, trip, persons, trips }: Props) {
   const manual = kmInput.trim() ? parseNumberInput(kmInput) : undefined
   const autoKm = o1 != null && o2 != null
   const km = resolveTripKm(o1 ?? undefined, o2 ?? undefined, manual ?? undefined)
+
+  const closedIn = settlements.filter((st) => st.period.kind !== 'all' && startDate && inRange(startDate, resolvePeriod(st.period)))
 
   const buildDraft = (): { draft: TripDraft; parseErrors: FieldErrors } => {
     const parseErrors: FieldErrors = {}
@@ -76,6 +85,24 @@ function TripForm({ onClose, trip, persons, trips }: Props) {
     const all = { ...validateTrip(draft), ...parseErrors }
     setErrors(all)
     if (hasErrors(all)) return
+    const similar = findSimilarTrips(draft, trips, trip?.id)
+    if (similar.length > 0) {
+      const ok = await confirm({
+        title: 'Ähnliche Fahrt bereits vorhanden',
+        confirmLabel: 'Trotzdem speichern',
+        message: (
+          <div className="space-y-2">
+            <p>Diese Fahrt wurde möglicherweise schon erfasst (gleiches Datum und gleiche Kilometer oder überschneidende Kilometerstände):</p>
+            <ul className="list-disc pl-5">
+              {similar.slice(0, 5).map((t) => (
+                <li key={t.id}>{formatDate(t.startDate)} · {formatKm(t.km)}{t.odoStart != null && ` · ${formatInt(t.odoStart)}–${formatInt(t.odoEnd ?? 0)}`}{t.updatedBy && ` · erfasst von ${t.updatedBy}`}</li>
+              ))}
+            </ul>
+          </div>
+        ),
+      })
+      if (!ok) return
+    }
     setSaving(true)
     try {
       await saveTrip(draft, trip?.id)
@@ -105,6 +132,13 @@ function TripForm({ onClose, trip, persons, trips }: Props) {
         </>
       }
     >
+      {closedIn.length > 0 && (
+        <div className="mb-5">
+          <Notice level="warning" title="Zeitraum bereits abgerechnet">
+            Das Datum liegt im Zeitraum der abgeschlossenen Abrechnung „{closedIn.map((c) => c.title).join('“, „')}“. Die abgeschlossene Abrechnung bleibt unverändert; dort wird anschließend eine Abweichung zum aktuellen Stand angezeigt.
+          </Notice>
+        </div>
+      )}
       <form
         className="grid gap-5"
         onSubmit={(e) => {
@@ -125,7 +159,7 @@ function TripForm({ onClose, trip, persons, trips }: Props) {
           <Field label="Startort" htmlFor="t-from" optional>
             <Input id="t-from" value={from} onChange={(e) => setFrom(e.target.value)} placeholder="z. B. München" maxLength={120} />
           </Field>
-          <ArrowRight className="mb-3 hidden h-4 w-4 text-slate-400 sm:block" />
+          <ArrowRight className="mb-3 hidden h-4 w-4 text-slate-500 sm:block" />
           <Field label="Zielort" htmlFor="t-to" optional>
             <Input id="t-to" value={to} onChange={(e) => setTo(e.target.value)} placeholder="z. B. Gardasee" maxLength={120} />
           </Field>

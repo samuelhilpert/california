@@ -1,0 +1,89 @@
+name: CI & Deployment
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Prüfen & testen
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # Firebase-Emulatoren (Regeltests, E2E) benötigen Java
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Unit-Tests (Berechnung, Import/Export, Backup)
+        run: npm test
+      - name: Firestore-Sicherheitsregeln
+        run: npm run test:rules
+      - name: Produktionsbuild
+        run: npm run build
+      - name: Playwright-Browser installieren
+        run: npx playwright install --with-deps chromium firefox webkit
+      - name: E2E-Tests (Chromium, Firefox, WebKit, iPhone)
+        run: npm run e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results
+          retention-days: 7
+
+  deploy:
+    name: Auf Firebase veröffentlichen
+    needs: test
+    # Nur auf main und nur, wenn das Firebase-Projekt in den Repository-Variablen hinterlegt ist
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.VITE_FIREBASE_PROJECT_ID != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production
+      url: https://${{ vars.VITE_FIREBASE_PROJECT_ID }}.web.app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build mit Firebase-Konfiguration
+        run: npm run build
+        env:
+          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
+          VITE_BOOK_ID: ${{ vars.VITE_BOOK_ID || 'california' }}
+      - name: Hosting und Sicherheitsregeln veröffentlichen
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then echo "::error::Secret FIREBASE_SERVICE_ACCOUNT fehlt (siehe README → Einrichtung)"; exit 1; fi
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npx firebase deploy --only hosting,firestore:rules,firestore:indexes --project "$PROJECT_ID" --non-interactive
+          rm -f "$RUNNER_TEMP/sa.json"

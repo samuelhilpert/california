@@ -14,7 +14,9 @@ import { allocateCents } from './allocate'
 import { inRange, resolvePeriod, samePeriod, type DateRange, type PeriodSpec } from './period'
 import { expandExpenses } from './recurrence'
 import { maxDate } from './dates'
-import type { CostEntry, Expense, IsoDate, Person, Trip } from './types'
+import { computeBalances, type BalanceResult } from './balance'
+import { findOdometerIssues, type OdometerIssue } from './tripChecks'
+import type { CostEntry, Expense, IsoDate, Payment, Person, Trip } from './types'
 
 export type TripLike = Pick<Trip, 'id' | 'startDate' | 'km' | 'personIds'> &
   Partial<Pick<Trip, 'endDate' | 'odoStart' | 'odoEnd'>>
@@ -233,6 +235,7 @@ export interface SettlementInput {
   trips: Trip[]
   expenses: Expense[]
   persons: Person[]
+  payments?: Payment[]
 }
 
 export interface SettlementOptions {
@@ -255,6 +258,12 @@ export interface Settlement extends Distribution {
   actualTripSpan: DateRange
   actualCostSpan: DateRange
   notices: Notice[]
+  /** Ausgleich: bezahlte Kosten, Anteile, Ausgleichszahlungen (Zahlungen im Fahrtenzeitraum). */
+  balance: BalanceResult
+  /** Ausgleichszahlungen im Zeitraum. */
+  payments: Payment[]
+  /** Kilometerlücken/-überschneidungen, deren folgende Fahrt im Zeitraum liegt. */
+  odometerIssues: OdometerIssue[]
 }
 
 /**
@@ -345,6 +354,31 @@ export function buildSettlement(input: SettlementInput, options: SettlementOptio
     }
   }
 
+  const odometerIssues = findOdometerIssues(input.trips).filter((i) => {
+    const next = input.trips.find((t) => t.id === i.nextTripId)
+    return next ? inRange(next.startDate, tripRange) : false
+  })
+  const gaps = odometerIssues.filter((i) => i.type === 'gap')
+  if (gaps.length > 0) {
+    const km = gaps.reduce((a, g) => a + g.km, 0)
+    notices.push({
+      level: 'warning',
+      code: 'odometer-gaps',
+      message: `Zwischen den Kilometerständen fehlen ${km.toLocaleString('de-DE')} km (${gaps.length} Lücke(n)). Nicht erfasste Kilometer zahlt niemand – sie erhöhen den Kilometerpreis für alle. Bitte die fehlenden Fahrten im Fahrtenbuch nachtragen.`,
+    })
+  }
+  const overlaps = odometerIssues.filter((i) => i.type === 'overlap')
+  if (overlaps.length > 0) {
+    notices.push({
+      level: 'warning',
+      code: 'odometer-overlaps',
+      message: `${overlaps.length} Fahrt(en) überschneiden sich bei den Kilometerständen – möglicherweise doppelt erfasst oder vertippt.`,
+    })
+  }
+
+  const payments = (input.payments ?? []).filter((p) => inRange(p.date, tripRange))
+  const balance = computeBalances(dist, costs, payments)
+
   return {
     ...dist,
     tripRange,
@@ -355,6 +389,9 @@ export function buildSettlement(input: SettlementInput, options: SettlementOptio
     actualTripSpan,
     actualCostSpan,
     notices,
+    balance,
+    payments,
+    odometerIssues,
   }
 }
 

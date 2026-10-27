@@ -1,0 +1,53 @@
+rules_version = '2';
+
+// Zugriff nur für angemeldete Personen mit bestätigter E-Mail-Adresse,
+// die in der Mitgliederliste des Fahrtenbuchs stehen.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function verified() {
+      return request.auth != null
+        && request.auth.token.email != null
+        && request.auth.token.email_verified == true;
+    }
+
+    function myEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    function bookPath(bookId) {
+      return /databases/$(database)/documents/books/$(bookId);
+    }
+
+    function isMember(bookId) {
+      return verified() && exists(bookPath(bookId))
+        && myEmail() in get(bookPath(bookId)).data.memberEmails;
+    }
+
+    function validMembers(data) {
+      return data.memberEmails is list
+        && data.memberEmails.size() >= 1
+        && data.memberEmails.size() <= 20;
+    }
+
+    match /books/{bookId} {
+      allow get: if isMember(bookId);
+      allow list: if false;
+      // Einrichtung: nur wenn das Buch noch nicht existiert und man sich selbst als Mitglied einträgt
+      allow create: if verified()
+        && validMembers(request.resource.data)
+        && myEmail() in request.resource.data.memberEmails;
+      allow update: if isMember(bookId) && validMembers(request.resource.data);
+      allow delete: if false;
+
+      match /{table}/{docId} {
+        allow read, write: if isMember(bookId)
+          && table in ['persons', 'trips', 'expenses', 'categories', 'payments', 'settlements', 'settings'];
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react'
 import { ArrowDownWideNarrow, ArrowUpNarrowWide, Download, Pencil, Plus, Route, Trash2, AlertTriangle } from 'lucide-react'
-import { useAppData } from '../lib/db/hooks'
-import { deleteTrip } from '../lib/db/repo'
+import { useAppData } from '../lib/store/context'
+import { deleteTrip, restoreRecord } from '../lib/store/repo'
+import { findOdometerIssues } from '../lib/domain/tripChecks'
 import { validateTripForCalc } from '../lib/domain/settlement'
 import { buildTripsWorkbook, downloadWorkbook, invalidLabel } from '../lib/io/excelExport'
 import type { Trip } from '../lib/domain/types'
 import { formatDate, formatInt, formatKm } from '../lib/format'
-import { Badge, Button, Card, EmptyState, Input, PageHeader, SearchInput, Select } from '../components/ui'
+import { Badge, Button, Card, EmptyState, Input, Notice, PageHeader, SearchInput, Select } from '../components/ui'
 import { TripFormModal } from '../components/TripForm'
 import { Loading } from '../components/Loading'
 import { collectYears } from '../lib/years'
@@ -23,6 +24,7 @@ export function TripsPage() {
   const [to, setTo] = useState('')
   const [desc, setDesc] = useState(true)
   const [editing, setEditing] = useState<Trip | undefined>()
+  const [prefill, setPrefill] = useState<Partial<Trip> | undefined>()
   const [formOpen, setFormOpen] = useState(false)
 
   const pName = useMemo(() => new Map((data?.persons ?? []).map((p) => [p.id, p.name])), [data])
@@ -54,8 +56,17 @@ export function TripsPage() {
   const years = collectYears(data.trips.map((t) => t.startDate))
   const hasFilter = Boolean(query || personFilter || year || from || to)
 
-  const openNew = () => { setEditing(undefined); setFormOpen(true) }
-  const openEdit = (t: Trip) => { setEditing(t); setFormOpen(true) }
+  const openNew = () => { setEditing(undefined); setPrefill(undefined); setFormOpen(true) }
+  const openEdit = (t: Trip) => { setEditing(t); setPrefill(undefined); setFormOpen(true) }
+  const issues = findOdometerIssues(data.trips)
+  const tripById = new Map(data.trips.map((t) => [t.id, t]))
+  const fillGap = (prevId: string, nextId: string, fromKm: number, toKm: number) => {
+    const prev = tripById.get(prevId)
+    const next = tripById.get(nextId)
+    setEditing(undefined)
+    setPrefill({ startDate: prev?.endDate ?? prev?.startDate ?? next?.startDate, odoStart: fromKm, odoEnd: toKm, note: 'Nachgetragen (Kilometerlücke)' })
+    setFormOpen(true)
+  }
   const remove = async (t: Trip) => {
     const ok = await confirm({
       title: 'Fahrt löschen?',
@@ -65,8 +76,8 @@ export function TripsPage() {
     })
     if (!ok) return
     try {
-      await deleteTrip(t.id)
-      toast('Fahrt wurde gelöscht.')
+      const removed = await deleteTrip(t.id)
+      toast('Fahrt wurde gelöscht.', 'success', removed ? { label: 'Rückgängig', onClick: async () => { await restoreRecord('trips', removed); toast('Fahrt wurde wiederhergestellt.') } } : undefined)
     } catch (e) {
       toast(errorMessage(e), 'error')
     }
@@ -93,6 +104,32 @@ export function TripsPage() {
         }
       />
 
+      {issues.length > 0 && (
+        <div className="mb-4">
+          <Notice level="warning" title={`Kilometerstände prüfen (${issues.length})`}>
+            <p className="mb-2">Nicht erfasste Kilometer zahlt niemand – sie erhöhen den Kilometerpreis für alle. Überschneidungen deuten auf doppelte oder vertippte Fahrten hin.</p>
+            <ul className="space-y-1.5">
+              {issues.slice(0, 8).map((i) => {
+                const prev = tripById.get(i.prevTripId)
+                const next = tripById.get(i.nextTripId)
+                return (
+                  <li key={`${i.prevTripId}-${i.nextTripId}`} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-surface/60 px-2 py-1.5">
+                    <span>
+                      {i.type === 'gap' ? <strong>Lücke von {formatKm(i.km)}</strong> : <strong>Überschneidung von {formatKm(i.km)}</strong>}
+                      {' '}({formatInt(i.fromKm)} → {formatInt(i.toKm)}) zwischen den Fahrten vom {formatDate(prev?.startDate)} und {formatDate(next?.startDate)}
+                    </span>
+                    {i.type === 'gap'
+                      ? <Button size="sm" onClick={() => fillGap(i.prevTripId, i.nextTripId, i.fromKm, i.toKm)}>Fahrt nachtragen</Button>
+                      : next && <Button size="sm" onClick={() => openEdit(next)}>Fahrt prüfen</Button>}
+                  </li>
+                )
+              })}
+            </ul>
+            {issues.length > 8 && <p className="mt-1 text-xs">… und {issues.length - 8} weitere</p>}
+          </Notice>
+        </div>
+      )}
+
       <Card className="mb-4" padded={false}>
         <div className="grid gap-3 p-4 md:grid-cols-[1fr_auto_auto] lg:grid-cols-[1fr_auto_auto_auto]">
           <SearchInput value={query} onChange={setQuery} placeholder="Ort, Notiz oder Person suchen …" />
@@ -106,7 +143,7 @@ export function TripsPage() {
           </Select>
           <div className="flex items-center gap-2 md:col-span-3 lg:col-span-1">
             <Input type="date" aria-label="Von Datum" value={from} onChange={(e) => setFrom(e.target.value)} className="lg:w-40" />
-            <span className="text-slate-400">–</span>
+            <span className="text-slate-500">–</span>
             <Input type="date" aria-label="Bis Datum" value={to} onChange={(e) => setTo(e.target.value)} className="lg:w-40" />
           </div>
         </div>
@@ -161,7 +198,7 @@ export function TripsPage() {
                           {t.endDate && <div className="text-xs text-slate-500">bis {formatDate(t.endDate)}</div>}
                         </td>
                         <td className="px-4 py-3 align-top">
-                          <div className="text-slate-700">{[t.from, t.to].filter(Boolean).join(' → ') || <span className="text-slate-400">–</span>}</div>
+                          <div className="text-slate-700">{[t.from, t.to].filter(Boolean).join(' → ') || <span className="text-slate-500">–</span>}</div>
                           {t.note && <div className="mt-0.5 line-clamp-2 max-w-xs text-xs text-slate-500">{t.note}</div>}
                         </td>
                         <td className="tabular whitespace-nowrap px-4 py-3 text-right align-top text-slate-500">
@@ -215,7 +252,7 @@ export function TripsPage() {
         )}
       </Card>
 
-      <TripFormModal open={formOpen} onClose={() => setFormOpen(false)} trip={editing} persons={data.persons} trips={data.trips} />
+      <TripFormModal open={formOpen} onClose={() => setFormOpen(false)} trip={editing} prefill={prefill} persons={data.persons} trips={data.trips} settlements={data.settlements} />
     </>
   )
 }

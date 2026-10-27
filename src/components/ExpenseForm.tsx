@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import type { Allocation, Category, Expense, Frequency, Person } from '../lib/domain/types'
 import { parseEuroInput } from '../lib/domain/money'
 import { validateExpense, hasErrors, type ExpenseDraft, type FieldErrors } from '../lib/domain/validation'
-import { addCategory, saveExpense, ValidationError } from '../lib/db/repo'
+import { addCategory, saveExpense, ValidationError } from '../lib/store/repo'
 import { todayIso } from '../lib/domain/dates'
 import { expandExpense } from '../lib/domain/recurrence'
 import { centsToInput, formatDate, formatEuro } from '../lib/format'
@@ -41,6 +41,9 @@ function ExpenseForm({ onClose, expense, categories, persons }: Props) {
   const [allocation, setAllocation] = useState<Allocation>(expense?.allocation ?? 'perKm')
   const [directIds, setDirectIds] = useState<string[]>(expense?.directPersonIds ?? [])
   const [note, setNote] = useState(expense?.note ?? '')
+  const [paidBy, setPaidBy] = useState(expense?.paidBy ?? '')
+  const [spread, setSpread] = useState(Boolean(expense?.spreadMonths && expense.spreadMonths > 1))
+  const [spreadMonths, setSpreadMonths] = useState(String(expense?.spreadMonths ?? 12))
   const [errors, setErrors] = useState<FieldErrors>({})
   const [newCat, setNewCat] = useState<string | null>(null)
 
@@ -61,12 +64,14 @@ function ExpenseForm({ onClose, expense, categories, persons }: Props) {
             count: endMode === 'count' ? Number(count) : undefined,
             until: endMode === 'until' ? until || undefined : undefined,
           },
+    spreadMonths: spread ? Number(spreadMonths) : undefined,
+    paidBy: paidBy || undefined,
     note: note || undefined,
   }
 
   const preview = useMemo(() => {
     if (repeat === 'once' || amountCents == null || !date) return null
-    const e = { ...draft, id: 'preview', createdAt: '', updatedAt: '' } as Expense
+    const e = { ...draft, spreadMonths: undefined, id: 'preview', createdAt: '', updatedAt: '' } as Expense
     if (endMode === 'open') return { open: true as const, list: expandExpense(e, todayIso()) }
     if (endMode === 'count' && !(Number(count) >= 1)) return null
     if (endMode === 'until' && !until) return null
@@ -141,6 +146,12 @@ function ExpenseForm({ onClose, expense, categories, persons }: Props) {
           <Field label={repeat === 'once' ? 'Betrag' : 'Betrag je Fälligkeit'} htmlFor="e-amount" error={errors.amountCents}>
             <Input id="e-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0,00" suffix="€" invalid={!!errors.amountCents} />
           </Field>
+          <Field label="Bezahlt von" htmlFor="e-paid" className="sm:col-span-2" hint="Für den Ausgleich: Wer hat das Geld vorgestreckt? Leer lassen bei gemeinsamem Konto.">
+            <Select id="e-paid" value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
+              <option value="">Unbekannt / gemeinsames Konto</option>
+              {persons.filter((p) => p.active || p.id === paidBy).map((p) => <option key={p.id} value={p.id}>{p.name}{p.active ? '' : ' (inaktiv)'}</option>)}
+            </Select>
+          </Field>
         </div>
 
         <div className="grid gap-4 rounded-xl bg-slate-50 p-4">
@@ -184,6 +195,24 @@ function ExpenseForm({ onClose, expense, categories, persons }: Props) {
                 : <>{preview.list.length} Fälligkeiten von {formatDate(preview.list[0].date)} bis {formatDate(preview.list.at(-1)!.date)} · gesamt <strong>{formatEuro(preview.list.length * (amountCents ?? 0))}</strong></>}
             </p>
           )}
+          <div className="flex flex-wrap items-center gap-3 border-t border-slate-200 pt-3">
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" className="h-4 w-4 accent-brand-700" checked={spread} onChange={(e) => setSpread(e.target.checked)} />
+              {repeat === 'once' ? 'Betrag auf Monate verteilen' : 'Jede Fälligkeit auf Monate verteilen'}
+            </label>
+            {spread && (
+              <div className="flex items-center gap-2 text-sm text-slate-600">
+                <Input type="number" min={2} max={120} value={spreadMonths} onChange={(e) => setSpreadMonths(e.target.value)} className="h-9 w-20" aria-label="Anzahl Monate" invalid={!!errors.spreadMonths} />
+                Monate
+              </div>
+            )}
+          </div>
+          {spread && (
+            <p className="text-xs text-slate-500">
+              Z. B. Jahresversicherung: Der Betrag zählt in der Abrechnung zu gleichen Teilen in jedem Monat (centgenau) statt komplett im Fälligkeitsmonat. Wichtig für Monatsabrechnungen.
+              {errors.spreadMonths && <span className="block text-red-600">{errors.spreadMonths}</span>}
+            </p>
+          )}
           {repeat !== 'once' && (
             <p className="text-xs text-slate-500">Wiederkehrende Kosten werden nicht als Kopien gespeichert, sondern je Monat bzw. Jahr genau einmal berücksichtigt – Doppelbuchungen sind ausgeschlossen.</p>
           )}
@@ -197,7 +226,7 @@ function ExpenseForm({ onClose, expense, categories, persons }: Props) {
             ] as const).map(([val, Icon, label, desc]) => (
               <button type="button" key={val} onClick={() => setAllocation(val)} aria-pressed={allocation === val}
                 className={clsx('flex gap-3 rounded-xl border p-3 text-left transition-colors', allocation === val ? 'border-brand-600 bg-brand-50/60 ring-1 ring-brand-600' : 'border-slate-200 hover:bg-slate-50')}>
-                <Icon className={clsx('mt-0.5 h-4 w-4 shrink-0', allocation === val ? 'text-brand-700' : 'text-slate-400')} />
+                <Icon className={clsx('mt-0.5 h-4 w-4 shrink-0', allocation === val ? 'text-brand-700' : 'text-slate-500')} />
                 <span>
                   <span className="block text-sm font-medium text-slate-900">{label}</span>
                   <span className="block text-xs text-slate-500">{desc}</span>

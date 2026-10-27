@@ -55,6 +55,7 @@ export function validateExpense(d: Partial<ExpenseDraft>): FieldErrors {
   else if (d.amountCents === 0) e.amountCents = 'Der Betrag darf nicht 0 € sein.'
   else if (Math.abs(d.amountCents) > 100_000_000) e.amountCents = 'Der Betrag ist unplausibel hoch.'
   if (!d.date || !isIsoDate(d.date)) e.date = 'Bitte ein gültiges Datum angeben.'
+  if (d.spreadMonths != null && (!Number.isInteger(d.spreadMonths) || d.spreadMonths < 1 || d.spreadMonths > 120)) e.spreadMonths = 'Bitte eine Monatsanzahl zwischen 1 und 120 angeben.'
   if (d.allocation === 'direct' && (!d.directPersonIds || d.directPersonIds.length === 0)) {
     e.directPersonIds = 'Bitte mindestens eine Person wählen, auf die diese Kosten verteilt werden.'
   }
@@ -71,4 +72,17 @@ export function validateExpense(d: Partial<ExpenseDraft>): FieldErrors {
 
 export function hasErrors(e: FieldErrors): boolean {
   return Object.keys(e).length > 0
+}
+
+export type PaymentDraft = Omit<import('./types').Payment, 'id' | 'createdAt' | 'updatedAt' | 'updatedBy'>
+
+export function validatePayment(d: Partial<PaymentDraft>): FieldErrors {
+  const e: FieldErrors = {}
+  if (!d.date || !isIsoDate(d.date)) e.date = 'Bitte ein gültiges Datum angeben.'
+  if (!d.fromPersonId) e.fromPersonId = 'Bitte angeben, wer zahlt.'
+  if (!d.toPersonId) e.toPersonId = 'Bitte angeben, wer das Geld erhält.'
+  if (d.fromPersonId && d.fromPersonId === d.toPersonId) e.toPersonId = 'Zahler und Empfänger müssen verschiedene Personen sein.'
+  if (d.amountCents == null || !Number.isInteger(d.amountCents) || d.amountCents <= 0) e.amountCents = 'Bitte einen positiven Betrag eingeben.'
+  else if (d.amountCents > 100_000_000) e.amountCents = 'Der Betrag ist unplausibel hoch.'
+  return e
 }

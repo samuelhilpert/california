@@ -1,127 +1,141 @@
 # VW California – Fahrtenbuch & Kostenabrechnung
 
-Webanwendung zur Verwaltung des Fahrtenbuchs und zur fairen, centgenauen Verteilung der Fahrzeugkosten unseres VW California.
-Läuft vollständig im Browser – ohne Backend, ohne Konto, ohne Cloud.
+Gemeinsames Fahrtenbuch mit fairer, centgenauer Kostenverteilung für unseren VW California.
+Alle Mitglieder arbeiten auf **einem gemeinsamen Datenstand** (Firebase). Die App funktioniert auch **offline** und lässt sich auf dem Handy wie eine App installieren.
 
-## Installation & Start
+**Funktionen:** Fahrtenbuch, Kosten (einmalig, monatlich, jährlich, auf Monate verteilt), Abrechnung nach Kilometerpreis, Ausgleich „wer schuldet wem“, abgeschlossene Abrechnungen, Excel-Import/-Export, Backup, Mitgliederverwaltung, dunkles Design.
 
-Voraussetzung: [Node.js](https://nodejs.org) ab Version 20.
+---
 
+## Einrichtung (einmalig, ca. 15 Minuten)
+
+### 1. Firebase-Projekt anlegen
+1. <https://console.firebase.google.com> → **Projekt hinzufügen** (z. B. `vw-california`). Google Analytics wird nicht benötigt.
+2. **Authentication** → *Jetzt starten* → Anbieter **E-Mail/Passwort** aktivieren.
+   Empfohlen: *Vorlagen* → Sprache auf **Deutsch** stellen (Bestätigungs- und Passwort-E-Mails).
+3. **Firestore Database** → *Datenbank erstellen* → Standort **`europe-west3` (Frankfurt)** → *Produktionsmodus*.
+   Die eigentlichen Sicherheitsregeln werden beim ersten Deployment eingespielt.
+4. **Projekteinstellungen** (Zahnrad) → *Deine Apps* → Web-App (`</>`) registrieren → die angezeigte Konfiguration notieren.
+
+Der kostenlose Spark-Tarif reicht für drei Personen bei Weitem.
+
+### 2. Lokal starten
 ```bash
-npm install        # Abhängigkeiten installieren (einmalig)
-npm run dev        # Entwicklungsserver starten → http://localhost:5173
+npm install
+cp .env.example .env.local     # Werte aus Schritt 1.4 eintragen
+npm run dev                    # → http://localhost:5173
 ```
 
-Weitere Befehle:
+### 3. Veröffentlichen
+**Variante A – automatisch per GitHub Actions (empfohlen):** Jeder Push auf `main` wird geprüft und veröffentlicht.
+1. Google Cloud Console → *IAM & Verwaltung* → *Dienstkonten* (Projekt aus Schritt 1) → Dienstkonto erstellen mit der Rolle **Firebase-Administrator** → *Schlüssel* → *JSON* herunterladen.
+2. GitHub-Repository → *Settings* → *Secrets and variables* → *Actions*:
+   - **Secret** `FIREBASE_SERVICE_ACCOUNT` = Inhalt der JSON-Datei
+   - **Variables** `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_APP_ID` (aus Schritt 1.4)
+3. Auf `main` pushen → die App ist unter `https://<projekt-id>.web.app` erreichbar.
 
-| Befehl | Zweck |
-| --- | --- |
-| `npm run build` | Typprüfung + Produktionsbuild nach `dist/` |
-| `npm run preview` | Produktionsbuild lokal ansehen (http://localhost:4173) |
-| `npm test` | Automatisierte Tests (Vitest) |
-| `npm run typecheck` | TypeScript-Prüfung |
-| `npm run lint` | ESLint |
+**Variante B – manuell:**
+```bash
+npx firebase login
+npx firebase use --add          # Projekt auswählen
+npm run build
+npx firebase deploy --only hosting,firestore:rules,firestore:indexes
+```
 
-Der Inhalt von `dist/` ist eine statische Website und kann auf jedem Webspace abgelegt werden (Hash-Routing, keine Serverkonfiguration nötig).
+### 4. Fahrtenbuch einrichten und Mitglieder einladen
+1. App öffnen → **Konto erstellen** → E-Mail bestätigen → **Fahrtenbuch einrichten**. Du bist das erste Mitglied.
+2. **Import & Backup** → `VW California.xlsx` importieren (siehe unten).
+3. **Einstellungen → Mitglieder** → E-Mail-Adressen von Dennis und Konrad **freischalten**.
+4. Beide öffnen den Link, wählen **Konto erstellen** mit genau dieser Adresse und bestätigen die E-Mail. Danach sehen alle denselben Datenstand.
 
-## Erste Schritte
+**Auf dem Handy installieren:** iPhone: Safari → Teilen → *Zum Home-Bildschirm*. Nur so bleiben die Offline-Daten auf iOS dauerhaft erhalten. Android: Chrome → Menü → *App installieren*.
 
-1. **Import & Backup → Excel-Datei auswählen** und `VW California.xlsx` wählen.
-2. In der Vorschau Fahrten, Kosten und Personen prüfen. Bei wiederkehrenden Kosten ohne Datum (z. B. Leasingrate) den **Beginn der Laufzeit** eintragen.
-3. **Auswahl importieren.** Danach direkt ein **Backup herunterladen**.
+---
 
-## Datensicherung – bitte lesen
+## Daten, Sicherheit, Offline
 
-- Alle Daten liegen **nur lokal in diesem Browser** (IndexedDB). Es gibt **keine** Synchronisierung zwischen Geräten oder Browsern.
-- Werden Browserdaten/Website-Daten gelöscht, sind die Daten weg. Schutz bietet nur ein **Backup**.
-- **Backup herunterladen** (Seite „Import & Backup“) erzeugt eine JSON-Datei mit *allen* Daten (Fahrten, Kosten, Personen, Kategorien, Einstellungen).
-- **Backup wiederherstellen** prüft die Datei vollständig und ersetzt danach – nach Bestätigung – alle Daten atomar. Bei einer fehlerhaften Datei wird nichts verändert.
-- Gerätewechsel: Backup auf dem alten Gerät herunterladen, auf dem neuen Gerät wiederherstellen.
-- Die App bittet den Browser um dauerhaften Speicher (`navigator.storage.persist`); ob das gewährt wurde, steht unter „Speicher“.
-- Das Dashboard erinnert, solange noch nie ein Backup erstellt wurde.
+- **Speicherort:** Firestore im eigenen Firebase-Projekt (Region Frankfurt). Pfad `books/<VITE_BOOK_ID>/…`.
+- **Zugriff:** nur angemeldete Personen mit **bestätigter E-Mail-Adresse**, die in der Mitgliederliste stehen. Die Prüfung erzwingt der Server über die Regeln in `firestore.rules`, nicht die App. Die Firebase-Webkonfiguration ist nicht geheim.
+- **Offline:** Jedes Gerät hält eine Kopie im Browser (IndexedDB). Änderungen ohne Netz werden sofort angezeigt und automatisch übertragen, sobald wieder eine Verbindung besteht. Oben steht jeweils der Status „Synchronisiert / Wird synchronisiert / Offline“.
+- **Gleichzeitige Änderungen:** Änderungen anderer erscheinen in Echtzeit. Bearbeiten zwei Personen *denselben* Datensatz gleichzeitig, gilt die zuletzt gespeicherte Fassung.
+- **Backup:** *Import & Backup → Backup herunterladen* erzeugt eine JSON-Datei mit allen Daten. Beim Einspielen wählst du **Zusammenführen** (ergänzt, löscht nichts, legt gleichnamige Personen zusammen) oder **Ersetzen** (Stand entspricht exakt der Sicherung). Das Dashboard erinnert nach 30 Tagen mit Änderungen an ein neues Backup. Backups der früheren lokalen Version (Schema 1) werden erkannt.
+
+---
 
 ## Berechnungslogik
 
-Die Berechnung ist als reine, UI-unabhängige Funktion in `src/lib/domain/settlement.ts` umgesetzt und vollständig getestet.
+Reine, UI-unabhängige Funktionen in `src/lib/domain/`, vollständig getestet.
 
-1. **Gesamtkosten** des Kostenzeitraums summieren – getrennt nach Verteilungsart.
-2. **Gesamtkilometer** aller gültigen Fahrten des Zeitraums summieren. Jede Fahrt hat genau *einen* Kilometerwert und zählt nur einmal, egal wie viele Personen beteiligt sind.
-3. **Kilometerpreis** = kilometerbezogene Kosten ÷ Gesamtkilometer
-4. **Fahrtkosten** = Kilometer der Fahrt × Kilometerpreis
-5. **Anteil je Person** = Fahrtkosten ÷ Anzahl der Beteiligten dieser Fahrt
-6. Anteile je Person summieren.
+1. **Gesamtkosten** des Kostenzeitraums, getrennt nach Verteilungsart
+2. **Gesamtkilometer** aller gültigen Fahrten. Jede Fahrt hat genau *einen* km-Wert, egal wie viele Personen beteiligt sind.
+3. **Kilometerpreis** = km-bezogene Kosten ÷ Gesamtkilometer
+4. **Fahrtkosten** = km der Fahrt × Kilometerpreis
+5. **Anteil je Person** = Fahrtkosten ÷ Anzahl Beteiligte
+6. **Direkt zugeordnete Kosten** (z. B. Stellplatz nur für zwei) zählen nicht zum km-Preis und werden zu gleichen Teilen auf die gewählten Personen verteilt.
 
-**Beispiel:** 600 € / 1.000 km = 0,60 €/km. Fahrt mit 200 km und zwei Personen → 120 € → je 60 €.
+Beispiel: 600 € / 1.000 km = 0,60 €/km. Eine Fahrt mit 200 km und zwei Personen kostet 120 €, also 60 € je Person.
 
-### Rundung
-Beträge werden intern in Cent gerechnet. Fahrtkosten und Personenanteile werden mit dem Restbetragsverfahren (Hare-Niemeyer, exakt mit BigInt) auf ganze Cent verteilt. Die Summe aller Anteile entspricht dadurch **immer exakt** den verteilten Kosten (z. B. 100 € auf drei Personen = 33,34 + 33,33 + 33,33). Restcents werden reihum verteilt, nicht immer an dieselbe Person.
+**Rundung:** Gerechnet wird intern in Cent, die Verteilung nutzt das Restbetragsverfahren (exakt mit BigInt). Die Summe der Anteile entspricht immer exakt den verteilten Kosten (100 € auf drei Personen = 33,34 + 33,33 + 33,33). Restcents werden reihum verteilt.
 
-### Zwei Verteilungsarten für Kosten
-- **Über den Kilometerpreis** (Standard): fließt in den Kilometerpreis ein.
-- **Direkt auf Personen**: fließt *nicht* in den Kilometerpreis ein, sondern wird zu gleichen Teilen auf ausdrücklich gewählte Personen verteilt (z. B. Stellplatzgebühr nur für zwei Personen). Jede Kostenbuchung gehört genau einer Verteilungsart an, es wird also nichts doppelt verrechnet.
+**Randfälle:** Ohne Fahrten oder bei 0 km gibt es keinen km-Preis (keine Division durch null). Die Kosten werden als „nicht verteilt“ ausgewiesen und es erscheint ein Hinweis. Fahrten mit ungültigen Angaben werden aufgelistet und nicht berücksichtigt.
 
-### Randfälle
-- Keine Fahrten oder 0 km: Es gibt keinen Kilometerpreis (keine Division durch null). Die kilometerbezogenen Kosten werden als **„nicht verteilt“** ausgewiesen und es erscheint ein Hinweis.
-- Fahrten mit fehlenden/ungültigen Kilometern, ohne Personen oder mit Endstand < Anfangsstand werden nicht berücksichtigt und in der Abrechnung aufgelistet.
+**Zeiträume:** Eine Fahrt zählt im Zeitraum ihres **Startdatums**, eine Kostenbuchung im Zeitraum ihres **Fälligkeitsdatums**. Ein abweichender Kostenzeitraum ist möglich und wird deutlich als Warnung angezeigt.
 
-### Zeiträume (Periodenlogik)
-- Eine **Fahrt** gehört zu dem Zeitraum, in dem ihr **Startdatum** liegt. Mehrtägige Fahrten über ein Periodenende werden vollständig dem Startzeitraum zugeordnet (mit Hinweis).
-- Eine **Kostenbuchung** gehört zu dem Zeitraum, in dem ihr **Buchungs- bzw. Fälligkeitsdatum** liegt.
-- Filter: Gesamt, Jahr, Monat, frei wählbarer Zeitraum.
-- Standardmäßig gilt für Kosten und Fahrten **derselbe** Zeitraum. Optional lässt sich ein abweichender Kostenzeitraum wählen. Das wird dann deutlich als Warnung angezeigt und im Export vermerkt.
-- Die Abrechnung zeigt immer, aus welchem tatsächlichen Datumsbereich die berücksichtigten Fahrten und Kosten stammen.
+**Wiederkehrende Kosten** werden nicht kopiert, sondern bei jeder Berechnung je Fälligkeit mit fester ID (`<ausgabe>#2026-03`) abgeleitet. Doppelbuchungen sind damit ausgeschlossen. Bei fester Anzahl zählen alle Raten, wie in der Excel-Datei. Unbefristete Kosten zählen bis zum Ende des Zeitraums bzw. bis heute.
 
-### Wiederkehrende Kosten
-Monatliche oder jährliche Kosten werden **nicht** als Kopien gespeichert. Gespeichert wird eine Ausgabe mit Regel (z. B. „monatlich, 24×“). Die einzelnen Fälligkeiten werden bei jeder Berechnung deterministisch abgeleitet und erhalten stabile IDs wie `<ausgabe-id>#2026-03`. Je Ausgabe und Periode gibt es genau eine Buchung, deshalb sind Doppelbuchungen durch Neuladen oder Neuberechnen ausgeschlossen.
-- Mit fester Anzahl oder Enddatum: alle Fälligkeiten zählen (auch zukünftige, mit Hinweis). Das entspricht der Excel-Logik (319,15 € × 24).
-- Unbefristet: Fälligkeiten bis zum Ende des gewählten Zeitraums bzw. bis heute.
+**Auf Monate verteilen:** Eine Fälligkeit (z. B. Jahresversicherung) lässt sich centgenau auf *n* Monate verteilen. Das ist wichtig für Monatsabrechnungen.
 
-## Excel-Import
+**Ausgleich:** Saldo = bezahlte Kosten − Kostenanteil + geleistete − erhaltene Ausgleichszahlungen. Vorgeschlagen werden möglichst wenige Überweisungen (höchstens n−1). Mit „Als bezahlt erfassen“ wird eine Überweisung als Zahlung gespeichert. Kosten ohne Zahler (gemeinsames Konto) werden separat ausgewiesen.
 
-Angepasst an die Struktur von `VW California.xlsx`:
+**Kilometerstand-Prüfung:** Lücken zwischen aufeinanderfolgenden Fahrten (Ende 1.020 → nächster Beginn 1.400) werden gemeldet. Diese Kilometer zahlt sonst niemand, und der km-Preis steigt für alle. Lücken lassen sich per Klick als Fahrt nachtragen. Überschneidungen deuten auf Doppel- oder Tippfehler hin.
 
-| Blatt | Inhalt | Verarbeitung |
-| --- | --- | --- |
-| `Fahrtenbuch` | Kopfzeile in Zeile 3: Von, Bis, Kilometerstand Anfang/Ende, gefahrene Kilometer (Formel), Wer, Kosten für Fahrt | Kopfzeile wird automatisch gesucht. Kilometer werden aus den Kilometerständen **nachgerechnet** (Formelwerte werden nicht vorausgesetzt). „Wer“ wird an Komma, Semikolon, „/“, „&“ und „und“ getrennt. Summenzeilen werden übersprungen. „Kosten für Fahrt“ wird ignoriert (berechnet die App selbst). |
-| `Kosten` | Bezeichnung, Betrag, Anzahl, Gesamt (=Betrag×Anzahl) | Anzahl > 1 → monatlich wiederkehrend mit dieser Anzahl. Die Kategorie wird über Stichworte erkannt. Abweichungen zwischen Gesamt und Betrag × Anzahl werden gemeldet. |
-| `Kostenverteilung` | Excel-Berechnung | Wird **nicht** importiert. Dient als Quelle für Personennamen und als **Gegenprobe**: Die App rechnet die Datei nach und vergleicht mit den Excel-Werten. |
+**Abgeschlossene Abrechnungen** speichern das Ergebnis samt Namen fest. Ändern sich später Daten im Zeitraum, zeigt die App die Abweichung an.
 
-- **Vorschau** vor dem Import mit Status je Zeile: Bereit, Bitte prüfen, Fehler, Duplikat. Dazu kommen verständliche Hinweise.
-- **Duplikate**: Jeder importierte Datensatz erhält einen Importschlüssel. Zusätzlich wird inhaltlich mit vorhandenen Fahrten (Datum, km, Personen) und Kosten verglichen. Ein wiederholter Import legt nichts doppelt an, auch nicht mit einer veralteten Vorschau.
-- Der Import ergänzt nur und überschreibt nie bestehende Daten. Er läuft atomar: Bei einem Fehler wird nichts übernommen.
-- Auch eigene Excel-Exporte der App lassen sich wieder importieren.
+---
 
-## Excel-Export
+## Excel-Import (`VW California.xlsx`)
 
-- **Fahrtenbuch** (gefiltert) auf der Seite „Fahrtenbuch“
-- **Abrechnung** mit den Blättern Übersicht, Personenanteile, Fahrten (mit Anteilen je Person), Kosten (inkl. Kategorien), Berechnungsgrundlagen
-- **Alle Daten** (Fahrtenbuch, Kosten, Personen) unter „Import & Backup“
+| Blatt | Verarbeitung |
+| --- | --- |
+| `Fahrtenbuch` | Kopfzeile wird automatisch gesucht. km werden aus den Kilometerständen nachgerechnet, Formelwerte werden nicht vorausgesetzt. „Wer“ wird an `,` `;` `/` `&` und „und“ getrennt. Summenzeilen werden übersprungen. |
+| `Kosten` | Bezeichnung, Betrag, Anzahl, Gesamt. Anzahl > 1 bedeutet monatlich wiederkehrend. Optional: Kategorie, Datum, Bezahlt von, Verteilt auf Monate. |
+| `Kostenverteilung` | Wird nicht importiert. Dient als Quelle für Personennamen und als **Gegenprobe**: Die App rechnet nach und vergleicht mit den Excel-Werten. |
 
-## Getroffene Entscheidungen
+Die Vorschau zeigt den Status jeder Zeile (Bereit, Bitte prüfen, Fehler, Duplikat) mit Erklärung. **Daten können dort korrigiert werden**, z. B. das Jahr der Fahrt vom „29-Dec“. Importierte Datensätze erhalten eine aus ihrem Inhalt abgeleitete ID: Ein wiederholter Import, auch von zwei Geräten gleichzeitig, legt nichts doppelt an. Bestehende Daten werden nie überschrieben.
 
-- **Personen** haben stabile UUIDs. Fahrten speichern IDs, keine Namen. Umbenennen und Deaktivieren verändern keine historischen Daten. Löschen ist nur möglich, solange eine Person nirgends verwendet wird.
-- **Datum der Excel-Fahrt**: Die Zelle enthält den 29.12.2026, das Format zeigt aber kein Jahr („d-mmm“). Der Import übernimmt den gespeicherten Wert und markiert die Zeile mit „Bitte prüfen“. Nach dem Import lässt sich das Datum bearbeiten.
-- **Beginn der Leasinglaufzeit** steht nicht in der Datei. Die Vorschau schlägt den Monat der ersten Fahrt vor, der Wert ist änderbar.
-- Kilometer sind auf eine Nachkommastelle genau, Beträge auf den Cent genau.
-- Hash-Routing (`#/fahrten`), damit die App ohne Serverkonfiguration überall läuft.
+---
+
+## Entwicklung & Tests
+
+| Befehl | Zweck |
+| --- | --- |
+| `npm run dev` | Entwicklungsserver mit echtem Firebase-Projekt (`.env.local`) |
+| `npm run emulators` + `npm run dev:emulator` | Lokal **ohne** Firebase-Projekt gegen die Emulatoren (benötigt Java 11+) |
+| `npm test` | Unit-Tests: Berechnung, Ausgleich, Wiederholungen, Import/Export, Backup, Zusammenführen |
+| `npm run test:rules` | Tests der Firestore-Sicherheitsregeln im Emulator |
+| `npm run e2e` | End-to-End-Tests im Emulator: Chromium, Firefox, WebKit (Safari) und iPhone, inkl. Barrierefreiheits-Prüfung (axe, WCAG 2.1 AA), Echtzeit, Offline und Zugriffsschutz |
+| `npm run check` | Typprüfung, Lint, Unit- und Regeltests, Build |
+
+Die CI (`.github/workflows/ci.yml`) führt alles bei jedem Push aus und veröffentlicht `main` automatisch.
+
+Lokal kann `PLAYWRIGHT_CHROMIUM_PATH` auf ein vorhandenes Chromium zeigen, falls `npx playwright install` keinen Zugriff auf den Download-Server hat.
 
 ## Projektstruktur
 
 ```
 src/
-  lib/domain/        Reine Fachlogik (ohne UI/DB) – vollständig getestet
-    settlement.ts    Zentrale Kostenverteilung + Periodenlogik
-    allocate.ts      Centgenaue Verteilung (Restbetragsverfahren)
-    recurrence.ts    Wiederkehrende Kosten → Einzelbuchungen mit stabilen IDs
-    period.ts        Zeiträume (Gesamt/Jahr/Monat/frei)
-    validation.ts    Eingabevalidierung
-    dates.ts, money.ts, types.ts
-  lib/db/            Dexie/IndexedDB-Schema, Repository, React-Hooks
-  lib/io/            Excel-Import (Analyse + Übernahme), Excel-Export, Backup
-  components/        UI-Bausteine, Formulare, Import-Vorschau
-  pages/             Dashboard, Fahrtenbuch, Kosten, Abrechnung, Personen, Import & Backup
+  lib/domain/      Fachlogik ohne UI/DB: settlement, balance, allocate, recurrence, tripChecks, period, validation
+  lib/store/       Datenschicht: DataStore-Schnittstelle, FirestoreStore (Echtzeit + offline), MemoryStore (Tests), repo
+  lib/io/          Excel-Import/-Export, Backup (Ersetzen/Zusammenführen)
+  lib/book.ts      Fahrtenbuch-Dokument, Mitglieder
+  components/      UI-Bausteine, AuthGate (Login/Einrichtung), Formulare, Ausgleich, abgeschlossene Abrechnungen
+  pages/           Dashboard, Fahrtenbuch, Kosten, Abrechnung, Personen, Import & Backup, Einstellungen
+firestore.rules    Zugriffsregeln (nur bestätigte Mitglieder)
+tests/rules/       Tests der Zugriffsregeln
+e2e/               Playwright-Tests
 ```
 
 ## Technik
+React 19, TypeScript, Vite, Tailwind CSS 4, lucide-react, Firebase (Auth + Firestore mit Offline-Cache, Hosting), vite-plugin-pwa, SheetJS, Zod, Vitest, Playwright, axe-core.
 
-React 19, TypeScript, Vite, Tailwind CSS 4, lucide-react (Icons), Dexie (IndexedDB), SheetJS (Excel), Zod (Backup-Validierung), Intl-API (deutsches Währungs- und Datumsformat), Vitest + fake-indexeddb (Tests).
+Die Excel-Datei mit euren echten Daten (`*.xlsx`) ist per `.gitignore` vom Repository ausgeschlossen.

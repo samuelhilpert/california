@@ -10,8 +10,13 @@ export interface ConfirmOptions {
   danger?: boolean
 }
 
+export interface ToastAction {
+  label: string
+  onClick: () => void | Promise<void>
+}
+
 export interface FeedbackApi {
-  toast: (message: string, tone?: ToastTone) => void
+  toast: (message: string, tone?: ToastTone, action?: ToastAction) => void
   confirm: (opts: ConfirmOptions) => Promise<boolean>
 }
 
@@ -27,6 +32,7 @@ export function useFeedback(): FeedbackApi {
 export function errorMessage(err: unknown): string {
   if (err instanceof Error) {
     if (err.name === 'QuotaExceededError') return 'Der Browser-Speicher ist voll. Bitte ein Backup erstellen und Speicher freigeben.'
+    if ((err as { code?: string }).code === 'permission-denied') return 'Keine Berechtigung – bitte neu anmelden oder von einem Mitglied freischalten lassen.'
     return err.message
   }
   return 'Unbekannter Fehler'

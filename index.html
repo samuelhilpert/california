@@ -5,6 +5,17 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0f766e" />
+    <meta name="description" content="Gemeinsames Fahrtenbuch und faire Kostenabrechnung für den VW California" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="California" />
+    <script>
+      // Design vor dem ersten Rendern setzen (kein Aufblitzen)
+      try {
+        var t = localStorage.getItem('theme');
+        if (t === 'dark' || ((!t || t === 'system') && matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.classList.add('dark');
+      } catch (e) {}
+    </script>
     <title>VW California – Fahrtenbuch & Abrechnung</title>
   </head>
   <body>

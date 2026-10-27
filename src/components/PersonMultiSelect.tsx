@@ -2,7 +2,7 @@ import { clsx } from 'clsx'
 import { Check, Plus, UserPlus } from 'lucide-react'
 import { useState } from 'react'
 import type { Person } from '../lib/domain/types'
-import { addPerson } from '../lib/db/repo'
+import { addPerson } from '../lib/store/repo'
 import { Button, Input } from './ui'
 import { errorMessage, useFeedback } from './feedback-context'
 
@@ -49,12 +49,12 @@ export function PersonMultiSelect({ persons, value, onChange, invalid }: { perso
               aria-pressed={on}
               className={clsx(
                 'inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-sm font-medium transition-colors',
-                on ? 'border-brand-600 bg-brand-50 text-brand-800' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50',
+                on ? 'border-brand-600 bg-brand-50 text-brand-800' : 'border-slate-200 bg-surface text-slate-600 hover:border-slate-300 hover:bg-slate-50',
               )}
             >
               {on ? <Check className="h-3.5 w-3.5" /> : <span className="h-3.5 w-3.5 rounded-full border border-slate-300" />}
               {p.name}
-              {!p.active && <span className="text-xs font-normal text-slate-400">(inaktiv)</span>}
+              {!p.active && <span className="text-xs font-normal text-slate-500">(inaktiv)</span>}
             </button>
           )
         })}

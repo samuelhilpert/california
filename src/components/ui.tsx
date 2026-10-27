@@ -4,6 +4,7 @@ import {
   forwardRef,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
@@ -28,8 +29,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLBut
           size === 'md' && 'h-10 px-4 text-sm',
           size === 'sm' && 'h-8 px-3 text-sm',
           size === 'icon' && 'h-9 w-9',
-          variant === 'primary' && 'bg-brand-700 text-white shadow-sm hover:bg-brand-800',
-          variant === 'secondary' && 'border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50',
+          variant === 'primary' && 'bg-brand-700 text-on-brand shadow-sm hover:bg-brand-800',
+          variant === 'secondary' && 'border border-slate-200 bg-surface text-slate-700 shadow-sm hover:bg-slate-50',
           variant === 'ghost' && 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
           variant === 'danger' && 'bg-red-600 text-white shadow-sm hover:bg-red-700',
           variant === 'danger-ghost' && 'text-slate-500 hover:bg-red-50 hover:text-red-600',
@@ -50,7 +51,7 @@ export function Field({ label, error, hint, children, className, htmlFor, option
     <div className={clsx('flex flex-col gap-1.5', className)}>
       <label htmlFor={htmlFor} className="text-sm font-medium text-slate-700">
         {label}
-        {optional && <span className="ml-1 font-normal text-slate-400">(optional)</span>}
+        {optional && <span className="ml-1 font-normal text-slate-500">(optional)</span>}
       </label>
       {children}
       {error ? <p className="text-xs text-red-600" role="alert">{error}</p> : hint ? <p className="text-xs text-slate-500">{hint}</p> : null}
@@ -59,7 +60,7 @@ export function Field({ label, error, hint, children, className, htmlFor, option
 }
 
 const inputBase =
-  'w-full rounded-lg border bg-white px-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600/30 focus:border-brand-600 disabled:bg-slate-50 disabled:text-slate-500'
+  'w-full rounded-lg border bg-surface px-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600/30 focus:border-brand-600 disabled:bg-slate-50 disabled:text-slate-500'
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & { invalid?: boolean; suffix?: string }>(function Input(
   { invalid, className, suffix, ...rest },
@@ -70,7 +71,7 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
   return (
     <div className="relative">
       {el}
-      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-slate-400">{suffix}</span>
+      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-slate-500">{suffix}</span>
     </div>
   )
 })
@@ -90,7 +91,7 @@ export function Select({ invalid, className, children, ...rest }: SelectHTMLAttr
 export function SearchInput({ value, onChange, placeholder = 'Suchen …', className }: { value: string; onChange: (v: string) => void; placeholder?: string; className?: string }) {
   return (
     <div className={clsx('relative', className)}>
-      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
       <input
         type="search"
         value={value}
@@ -105,7 +106,7 @@ export function SearchInput({ value, onChange, placeholder = 'Suchen …', class
 
 // ---------------------------------------------------------------- Layout-Bausteine
 export function Card({ children, className, padded = true }: { children: ReactNode; className?: string; padded?: boolean }) {
-  return <section className={clsx('min-w-0 rounded-xl border border-slate-200 bg-white shadow-sm', padded && 'p-5', className)}>{children}</section>
+  return <section className={clsx('min-w-0 rounded-xl border border-slate-200 bg-surface shadow-sm', padded && 'p-5', className)}>{children}</section>
 }
 
 export function CardTitle({ children, action, sub }: { children: ReactNode; action?: ReactNode; sub?: ReactNode }) {
@@ -137,7 +138,7 @@ export function Stat({ label, value, sub, icon }: { label: string; value: ReactN
     <Card className="flex flex-col gap-1">
       <div className="flex items-center justify-between text-sm text-slate-500">
         <span>{label}</span>
-        {icon && <span className="text-slate-400">{icon}</span>}
+        {icon && <span className="text-slate-500">{icon}</span>}
       </div>
       <div className="tabular text-2xl font-semibold tracking-tight text-slate-900">{value}</div>
       {sub && <div className="text-xs text-slate-500">{sub}</div>}
@@ -208,16 +209,26 @@ export function Bar({ value, max, color = 'var(--color-brand-600)' }: { value: n
 }
 
 // ---------------------------------------------------------------- Modal
+/** Offene Dialoge; Escape schließt nur den obersten. */
+const modalStack: string[] = []
+
 export function Modal({ open, onClose, title, description, children, footer, size = 'md' }: { open: boolean; onClose: () => void; title: string; description?: ReactNode; children: ReactNode; footer?: ReactNode; size?: 'md' | 'lg' | 'xl' }) {
   const titleId = useId()
   const panel = useRef<HTMLDivElement>(null)
+  // onClose ist oft eine Inline-Funktion. Über eine Ref wird verhindert, dass der Effekt bei jedem
+  // Neu-Rendern (z. B. durch Echtzeit-Änderungen anderer Mitglieder) erneut läuft und den Fokus stiehlt.
+  const onCloseRef = useRef(onClose)
+  useLayoutEffect(() => {
+    onCloseRef.current = onClose
+  })
   useEffect(() => {
     if (!open) return
     const prev = document.activeElement as HTMLElement | null
+    modalStack.push(titleId)
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && modalStack.at(-1) === titleId) {
         e.stopPropagation()
-        onClose()
+        onCloseRef.current()
       }
     }
     document.addEventListener('keydown', onKey)
@@ -229,21 +240,23 @@ export function Modal({ open, onClose, title, description, children, footer, siz
     return () => {
       clearTimeout(t)
       document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = ''
+      const i = modalStack.lastIndexOf(titleId)
+      if (i >= 0) modalStack.splice(i, 1)
+      if (modalStack.length === 0) document.body.style.overflow = ''
       prev?.focus?.()
     }
-  }, [open, onClose])
+  }, [open, titleId])
   if (!open) return null
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]" onClick={onClose} aria-hidden />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" onClick={onClose} aria-hidden />
       <div
         ref={panel}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         className={clsx(
-          'relative flex max-h-[92dvh] w-full flex-col rounded-t-2xl bg-white shadow-xl sm:rounded-2xl',
+          'relative flex max-h-[92dvh] w-full flex-col rounded-t-2xl bg-surface shadow-xl sm:rounded-2xl',
           size === 'md' && 'sm:max-w-lg',
           size === 'lg' && 'sm:max-w-2xl',
           size === 'xl' && 'sm:max-w-5xl',

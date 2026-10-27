@@ -1,7 +1,7 @@
 import { clsx } from 'clsx'
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { ChevronDown, ChevronRight, Download, CalendarRange, Info } from 'lucide-react'
-import { useAppData } from '../lib/db/hooks'
+import { useAppData } from '../lib/store/context'
 import { buildSettlement, personRows } from '../lib/domain/settlement'
 import { periodLabel, type PeriodSpec } from '../lib/domain/period'
 import { todayIso } from '../lib/domain/dates'
@@ -11,6 +11,8 @@ import { Badge, Bar, Button, Card, CardTitle, EmptyState, Notice, PageHeader, St
 import { PeriodPicker } from '../components/PeriodPicker'
 import { collectYears } from '../lib/years'
 import { Loading } from '../components/Loading'
+import { BalancePanel } from '../components/BalancePanel'
+import { CloseSettlementButton, SettlementSnapshotList } from '../components/SettlementSnapshots'
 import { errorMessage, useFeedback } from '../components/feedback-context'
 
 const STORAGE_KEY = 'settlement-period'
@@ -67,7 +69,10 @@ export function SettlementPage() {
       <PageHeader
         title="Abrechnung"
         description="Kosten werden über den Kilometerpreis fair auf die Beteiligten jeder Fahrt verteilt."
-        actions={<Button icon={<Download className="h-4 w-4" />} onClick={exportXlsx}>Excel-Export</Button>}
+        actions={<>
+          <CloseSettlementButton s={s} data={data} period={period} costPeriod={costPeriod ?? undefined} labels={labels} />
+          <Button icon={<Download className="h-4 w-4" />} onClick={exportXlsx}>Excel-Export</Button>
+        </>}
       />
 
       <Card className="mb-6">
@@ -140,13 +145,15 @@ export function SettlementPage() {
                   return (
                     <Fragment key={r.personId}>
                       <tr className={clsx('cursor-pointer hover:bg-slate-50', open && 'bg-slate-50')} onClick={() => setOpenPerson(open ? null : r.personId)}
-                        aria-expanded={open} tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpenPerson(open ? null : r.personId) } }}>
+>
                         <td className="px-4 py-3">
-                          <div className="flex items-center gap-2 font-medium text-slate-900">
-                            {open ? <ChevronDown className="h-4 w-4 text-slate-400" /> : <ChevronRight className="h-4 w-4 text-slate-400" />}
+                          <button type="button" className="flex items-center gap-2 text-left font-medium text-slate-900" aria-expanded={open}
+                            aria-label={`${r.name}: Fahrten ${open ? 'ausblenden' : 'anzeigen'}`}
+                            onClick={(e) => { e.stopPropagation(); setOpenPerson(open ? null : r.personId) }}>
+                            {open ? <ChevronDown className="h-4 w-4 text-slate-500" /> : <ChevronRight className="h-4 w-4 text-slate-500" />}
                             {r.name}
                             {!r.active && <Badge>inaktiv</Badge>}
-                          </div>
+                          </button>
                           <div className="ml-6 mt-1.5 max-w-48"><Bar value={r.totalCents} max={maxShare} /></div>
                         </td>
                         <td className="tabular px-4 py-3 text-right">{formatKm(r.km)}</td>
@@ -158,7 +165,7 @@ export function SettlementPage() {
                       {open && (
                         <tr className="bg-slate-50">
                           <td colSpan={6} className="px-4 pb-4 pt-0">
-                            <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+                            <div className="overflow-x-auto rounded-lg border border-slate-200 bg-surface">
                               <table className="w-full text-xs sm:text-sm">
                                 <thead>
                                   <tr className="border-b border-slate-100 text-left text-slate-500">
@@ -228,6 +235,10 @@ export function SettlementPage() {
         )}
       </Card>
 
+      <div className="mb-6">
+        <BalancePanel s={s} persons={data.persons} periodLabel={labels.trips} />
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-5">
         <Card padded={false} className="lg:col-span-3">
           <div className="p-5 pb-3"><CardTitle sub="Kilometer × Kilometerpreis, aufgeteilt auf die Beteiligten">Aufschlüsselung nach Fahrten</CardTitle></div>
@@ -236,7 +247,7 @@ export function SettlementPage() {
           ) : (
             <div className="max-h-[480px] overflow-auto">
               <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-white">
+                <thead className="sticky top-0 bg-surface">
                   <tr className="border-y border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
                     <th className="px-4 py-2.5">Datum</th>
                     <th className="px-4 py-2.5 text-right">km</th>
@@ -257,7 +268,7 @@ export function SettlementPage() {
                         <td className="tabular px-4 py-2.5 text-right font-medium">{formatEuro(t.costCents)}</td>
                         <td className="px-4 py-2.5">
                           <div className="flex flex-wrap gap-1">
-                            {t.shares.map((x) => <Badge key={x.personId}>{pName.get(x.personId) ?? '?'} <span className="tabular text-slate-500">{formatEuro(x.cents)}</span></Badge>)}
+                            {t.shares.map((x) => <Badge key={x.personId}>{pName.get(x.personId) ?? '?'} <span className="tabular text-slate-600">{formatEuro(x.cents)}</span></Badge>)}
                           </div>
                         </td>
                       </tr>
@@ -315,9 +326,13 @@ export function SettlementPage() {
         </Card>
       </div>
 
+      <div className="mt-6">
+        <SettlementSnapshotList data={data} />
+      </div>
+
       <Card className="mt-6">
         <div className="flex gap-3 text-sm text-slate-600">
-          <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
           <div className="space-y-1">
             <p><strong className="font-medium text-slate-800">So wird gerechnet:</strong> Kilometerpreis = kilometerbezogene Kosten ÷ Gesamtkilometer. Jede Fahrt kostet ihre Kilometer × Kilometerpreis; diese Kosten werden zu gleichen Teilen auf die Beteiligten verteilt. Jede Fahrt zählt nur einmal, egal wie viele Personen dabei waren.</p>
             <p>Direkt zugeordnete Kosten fließen nicht in den Kilometerpreis ein, sondern werden zu gleichen Teilen auf die gewählten Personen verteilt. Alle Beträge werden centgenau gerundet, sodass die Summe der Anteile exakt den verteilten Kosten entspricht.</p>

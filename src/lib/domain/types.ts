@@ -1,3 +1,5 @@
+import type { PeriodSpec } from './period'
+
 /** ISO-Datum im Format JJJJ-MM-TT (ohne Uhrzeit, ohne Zeitzone). */
 export type IsoDate = string
 
@@ -6,6 +8,7 @@ export interface Person {
   name: string
   active: boolean
   createdAt: string
+  updatedAt?: string
 }
 
 export interface Trip {
@@ -25,6 +28,8 @@ export interface Trip {
   importKey?: string
   createdAt: string
   updatedAt: string
+  /** E-Mail der Person, die zuletzt geändert hat. */
+  updatedBy?: string
 }
 
 export interface Category {
@@ -32,6 +37,7 @@ export interface Category {
   name: string
   builtin: boolean
   color: string
+  updatedAt?: string
 }
 
 /**
@@ -63,10 +69,31 @@ export interface Expense {
   /** Nur bei allocation = 'direct'. */
   directPersonIds?: string[]
   recurrence?: Recurrence
+  /**
+   * Verteilt jede Fälligkeit gleichmäßig auf so viele Monate (z. B. Jahresversicherung auf 12 Monate).
+   * Leer oder 1 = der volle Betrag zählt im Fälligkeitsmonat.
+   */
+  spreadMonths?: number
+  /** Person, die die Kosten bezahlt hat (für den Ausgleich). Leer = unbekannt/gemeinsames Konto. */
+  paidBy?: string
   note?: string
   importKey?: string
   createdAt: string
   updatedAt: string
+  updatedBy?: string
+}
+
+/** Ausgleichszahlung zwischen zwei Personen. */
+export interface Payment {
+  id: string
+  date: IsoDate
+  fromPersonId: string
+  toPersonId: string
+  amountCents: number
+  note?: string
+  createdAt: string
+  updatedAt: string
+  updatedBy?: string
 }
 
 /** Eine einzelne, konkrete Kostenbuchung (einmalig oder eine Fälligkeit einer wiederkehrenden Ausgabe). */
@@ -82,9 +109,29 @@ export interface CostEntry {
   amountCents: number
   allocation: Allocation
   directPersonIds: string[]
+  paidBy?: string
+  /** Bei auf Monate verteilten Kosten: Teil x von n. */
+  spread?: { index: number; of: number }
 }
 
 export interface Setting {
-  key: string
+  /** Schlüssel der Einstellung, z. B. "lastBackupAt". */
+  id: string
   value: unknown
+}
+
+/** Festgeschriebene Abrechnung: Ergebnis und Namen zum Zeitpunkt des Abschlusses. */
+export interface SettlementSnapshot {
+  id: string
+  title: string
+  period: PeriodSpec
+  costPeriod?: PeriodSpec
+  /** Namen zum Zeitpunkt des Abschlusses (Personen können später umbenannt werden). */
+  personNames: Record<string, string>
+  categoryNames: Record<string, string>
+  /** Vollständiges Berechnungsergebnis (JSON-serialisiert). */
+  result: unknown
+  createdAt: string
+  createdBy?: string
+  updatedAt: string
 }

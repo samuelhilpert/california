@@ -41,6 +41,9 @@ export interface ImportExpenseDraft {
   date?: IsoDate
   frequency?: Frequency
   count?: number
+  spreadMonths?: number
+  /** Name der zahlenden Person (wird beim Import einer Person zugeordnet bzw. angelegt). */
+  paidByName?: string
   note?: string
 }
 
@@ -364,7 +367,7 @@ export function guessCategory(title: string, categories: Category[]): string {
   return categories.some((c) => c.id === 'other') ? 'other' : categories[0]?.id ?? 'other'
 }
 
-type CostCol = 'title' | 'category' | 'amount' | 'count' | 'total' | 'date' | 'frequency' | 'note'
+type CostCol = 'title' | 'category' | 'amount' | 'count' | 'total' | 'date' | 'frequency' | 'note' | 'paidBy' | 'spread'
 
 function classifyCostHeader(raw: string): CostCol | null {
   const n = normalizeHeader(raw)
@@ -376,6 +379,8 @@ function classifyCostHeader(raw: string): CostCol | null {
   if (['datum', 'buchungsdatum', 'faelligkeit', 'start', 'beginn', 'erstefaelligkeit'].includes(n)) return 'date'
   if (['wiederholung', 'intervall', 'turnus', 'rhythmus'].includes(n)) return 'frequency'
   if (['notiz', 'bemerkung', 'anmerkung', 'kommentar'].includes(n)) return 'note'
+  if (['bezahltvon', 'zahler', 'bezahlt', 'gezahltvon'].includes(n)) return 'paidBy'
+  if (['verteiltaufmonate', 'monatsverteilung', 'verteilungmonate'].includes(n)) return 'spread'
   return null
 }
 
@@ -471,6 +476,14 @@ function parseCostSheet(ws: XLSX.WorkSheet, sheetName: string, date1904: boolean
       warn(frequency ? 'Der Beginn der Laufzeit ist in der Datei nicht angegeben – bitte Startmonat prüfen.' : 'Kein Datum angegeben – bitte Buchungsdatum prüfen.')
     }
 
+    let spreadMonths: number | undefined
+    const sp = readNumber(at('spread'))
+    if (sp.value != null) {
+      if (!Number.isInteger(sp.value) || sp.value < 1 || sp.value > 120) warn(`„Verteilt auf Monate“ (${sp.value}) ist ungültig und wird ignoriert.`)
+      else if (sp.value > 1) spreadMonths = sp.value
+    }
+    const paidByName = cellText(at('paidBy')).trim().replace(/\s+/g, ' ') || undefined
+
     let categoryId = guessCategory(title, categories)
     const catText = cellText(at('category')).trim()
     if (catText) {
@@ -488,6 +501,8 @@ function parseCostSheet(ws: XLSX.WorkSheet, sheetName: string, date1904: boolean
             date: dr.date,
             frequency,
             count: frequency ? (n > 1 ? n : undefined) : undefined,
+            spreadMonths,
+            paidByName,
             note: cellText(at('note')).trim() || undefined,
           }
         : undefined
@@ -585,6 +600,7 @@ export function analyzeWorkbook(wb: XLSX.WorkBook, fileName: string, existing: E
   }
   for (const r of trips) for (const n of r.draft?.personNames ?? []) addName(n, 1)
   for (const p of reference?.persons ?? []) addName(p.name, 0)
+  for (const r of expenses) if (r.draft?.paidByName) addName(r.draft.paidByName, 0)
 
   // --- Duplikate: Fahrten ---
   const nameById = new Map(existing.persons.map((p) => [p.id, p.name.toLowerCase()]))
@@ -686,6 +702,7 @@ export function draftToExpense(d: ImportExpenseDraft, id: string, date: IsoDate)
     date,
     allocation: 'perKm',
     recurrence: d.frequency ? { frequency: d.frequency, count: d.count } : undefined,
+    spreadMonths: d.spreadMonths,
     note: d.note,
     importKey: expenseImportKey(d),
     createdAt: now,

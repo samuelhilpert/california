@@ -1,8 +1,8 @@
 import { clsx } from 'clsx'
 import { useMemo, useState } from 'react'
-import { Pencil, Plus, Receipt, Repeat, Tags, Trash2, Users } from 'lucide-react'
-import { useAppData } from '../lib/db/hooks'
-import { addCategory, deleteCategory, deleteExpense, renameCategory } from '../lib/db/repo'
+import { CalendarRange, Pencil, Plus, Receipt, Repeat, Tags, Trash2, Users, Wallet } from 'lucide-react'
+import { useAppData } from '../lib/store/context'
+import { addCategory, deleteCategory, deleteExpense, renameCategory, restoreRecord } from '../lib/store/repo'
 import { expandExpenses, describeRecurrence } from '../lib/domain/recurrence'
 import { todayIso, maxDate } from '../lib/domain/dates'
 import type { Category, Expense } from '../lib/domain/types'
@@ -73,8 +73,8 @@ export function ExpensesPage() {
     })
     if (!ok) return
     try {
-      await deleteExpense(e.id)
-      toast('Ausgabe wurde gelöscht.')
+      const removed = await deleteExpense(e.id)
+      toast('Ausgabe wurde gelöscht.', 'success', removed ? { label: 'Rückgängig', onClick: async () => { await restoreRecord('expenses', removed); toast('Ausgabe wurde wiederhergestellt.') } } : undefined)
     } catch (err) {
       toast(errorMessage(err), 'error')
     }
@@ -135,10 +135,10 @@ export function ExpensesPage() {
             <option value="">Alle Jahre</option>
             {years.map((y) => <option key={y} value={y}>{y}</option>)}
           </Select>
-          <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5" role="tablist">
+          <div className="inline-flex rounded-lg border border-slate-200 bg-surface p-0.5" role="tablist">
             {([['expenses', 'Ausgaben'], ['entries', 'Einzelbuchungen']] as const).map(([v, l]) => (
               <button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)}
-                className={clsx('h-8 rounded-md px-3 text-sm font-medium', view === v ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100')}>
+                className={clsx('h-8 rounded-md px-3 text-sm font-medium', view === v ? 'bg-slate-900 text-slate-50' : 'text-slate-600 hover:bg-slate-100')}>
                 {l}
               </button>
             ))}
@@ -165,6 +165,8 @@ export function ExpensesPage() {
                         <span className="font-medium text-slate-900">{e.title}</span>
                         <Badge><span className="h-2 w-2 rounded-full" style={{ background: c?.color }} />{c?.name ?? 'Unbekannt'}</Badge>
                         {e.recurrence && <Badge tone="blue"><Repeat className="h-3 w-3" />{describeRecurrence(e)}</Badge>}
+                        {!e.recurrence && e.spreadMonths && e.spreadMonths > 1 && <Badge tone="blue"><CalendarRange className="h-3 w-3" />auf {e.spreadMonths} Monate verteilt</Badge>}
+                        {e.paidBy && <Badge tone="green"><Wallet className="h-3 w-3" />bezahlt von {pName.get(e.paidBy) ?? '?'}</Badge>}
                         {e.allocation === 'direct' && <Badge tone="amber"><Users className="h-3 w-3" />direkt: {(e.directPersonIds ?? []).map((id) => pName.get(id) ?? '?').join(', ')}</Badge>}
                       </div>
                       <div className="mt-1 text-xs text-slate-500">
@@ -205,7 +207,7 @@ export function ExpensesPage() {
                 {filteredEntries.map((e) => (
                   <tr key={e.id} className={e.date > today ? 'text-slate-500' : undefined}>
                     <td className="whitespace-nowrap px-4 py-2.5">{formatDate(e.date)}{e.date > today && <Badge className="ml-2">geplant</Badge>}</td>
-                    <td className="px-4 py-2.5">{e.title}</td>
+                    <td className="px-4 py-2.5">{e.title}{e.spread && <span className="ml-1.5 text-xs text-slate-500">({e.spread.index}/{e.spread.of})</span>}</td>
                     <td className="hidden px-4 py-2.5 sm:table-cell">{catMap.get(e.categoryId)?.name}</td>
                     <td className="hidden px-4 py-2.5 font-mono text-xs md:table-cell">{e.period ?? '–'}</td>
                     <td className="tabular whitespace-nowrap px-4 py-2.5 text-right font-medium">{formatEuro(e.amountCents)}</td>
@@ -286,7 +288,7 @@ function CategoriesModal({ open, onClose, categories, expenses }: { open: boolea
               ) : (
                 <>
                   <span className="flex-1 text-sm text-slate-800">{c.name}</span>
-                  <span className="text-xs text-slate-400">{used} Ausgabe(n)</span>
+                  <span className="text-xs text-slate-500">{used} Ausgabe(n)</span>
                   <Button variant="ghost" size="icon" onClick={() => setEdit({ id: c.id, name: c.name })} aria-label={`${c.name} umbenennen`}><Pencil className="h-4 w-4" /></Button>
                   {!c.builtin && <Button variant="danger-ghost" size="icon" onClick={() => void remove(c)} disabled={used > 0} title={used > 0 ? 'Wird noch verwendet' : 'Löschen'} aria-label={`${c.name} löschen`}><Trash2 className="h-4 w-4" /></Button>}
                 </>
