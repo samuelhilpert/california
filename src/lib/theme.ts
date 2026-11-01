@@ -20,7 +20,7 @@ export function applyTheme(pref: ThemePref = getThemePref()) {
   document.documentElement.classList.toggle('dark', dark)
   void getComputedStyle(document.body).color
   requestAnimationFrame(() => requestAnimationFrame(() => style.remove()))
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0b1220' : '#0f766e')
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#18181a' : '#f5f4f2')
 }
 
 export function setThemePref(pref: ThemePref) {

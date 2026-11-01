@@ -22,3 +22,8 @@ playwright-report/
 !.env.emulator
 dist-e2e
 e2e/.tmp/
+
+# Private Unterlagen (nie ins öffentliche Repo)
+*.pdf
+*.xlsx
+!e2e/**/*.xlsx

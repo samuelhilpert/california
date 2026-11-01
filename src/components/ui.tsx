@@ -13,6 +13,7 @@ import {
   type TextareaHTMLAttributes,
 } from 'react'
 import { createPortal } from 'react-dom'
+import { BusMark } from './BusMark'
 
 // ---------------------------------------------------------------- Button
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'danger-ghost'
@@ -25,12 +26,12 @@ export const Button = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLBut
         ref={ref}
         type={type}
         className={clsx(
-          'inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap',
+          'inline-flex items-center justify-center gap-2 rounded-xl font-medium transition-[color,background-color,transform] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 whitespace-nowrap',
           size === 'md' && 'h-10 px-4 text-sm',
           size === 'sm' && 'h-8 px-3 text-sm',
           size === 'icon' && 'h-9 w-9',
           variant === 'primary' && 'bg-brand-700 text-on-brand shadow-sm hover:bg-brand-800',
-          variant === 'secondary' && 'border border-slate-200 bg-surface text-slate-700 shadow-sm hover:bg-slate-50',
+          variant === 'secondary' && 'border border-slate-200 bg-surface text-slate-700 shadow-sm hover:bg-slate-100',
           variant === 'ghost' && 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
           variant === 'danger' && 'bg-red-600 text-white shadow-sm hover:bg-red-700',
           variant === 'danger-ghost' && 'text-slate-500 hover:bg-red-50 hover:text-red-600',
@@ -60,7 +61,7 @@ export function Field({ label, error, hint, children, className, htmlFor, option
 }
 
 const inputBase =
-  'w-full rounded-lg border bg-surface px-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600/30 focus:border-brand-600 disabled:bg-slate-50 disabled:text-slate-500'
+  'w-full rounded-xl border bg-surface px-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600/30 focus:border-brand-600 disabled:bg-slate-50 disabled:text-slate-500'
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & { invalid?: boolean; suffix?: string }>(function Input(
   { invalid, className, suffix, ...rest },
@@ -106,14 +107,14 @@ export function SearchInput({ value, onChange, placeholder = 'Suchen …', class
 
 // ---------------------------------------------------------------- Layout-Bausteine
 export function Card({ children, className, padded = true }: { children: ReactNode; className?: string; padded?: boolean }) {
-  return <section className={clsx('min-w-0 rounded-xl border border-slate-200 bg-surface shadow-sm', padded && 'p-5', className)}>{children}</section>
+  return <section className={clsx('min-w-0 rounded-card border border-slate-200/70 bg-surface shadow-card', padded && 'p-5 sm:p-6', className)}>{children}</section>
 }
 
 export function CardTitle({ children, action, sub }: { children: ReactNode; action?: ReactNode; sub?: ReactNode }) {
   return (
     <div className="mb-4 flex items-start justify-between gap-3">
       <div>
-        <h2 className="text-base font-semibold text-slate-900">{children}</h2>
+        <h2 className="text-lg font-semibold leading-snug text-slate-900">{children}</h2>
         {sub && <p className="mt-0.5 text-sm text-slate-500">{sub}</p>}
       </div>
       {action}
@@ -125,7 +126,7 @@ export function PageHeader({ title, description, actions }: { title: string; des
   return (
     <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{title}</h1>
+        <h1 className="text-[1.75rem] font-bold leading-tight text-slate-900 sm:text-3xl">{title}</h1>
         {description && <p className="mt-1 text-sm text-slate-500">{description}</p>}
       </div>
       {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
@@ -165,11 +166,22 @@ export function Badge({ children, tone = 'slate', className }: { children: React
   )
 }
 
-export function EmptyState({ icon, title, children, action }: { icon?: ReactNode; title: string; children?: ReactNode; action?: ReactNode }) {
+/**
+ * Leerer Zustand mit klarem nächsten Schritt. `illustration` zeigt unseren Bus statt eines Symbols –
+ * für die großen, wichtigen leeren Seiten.
+ */
+export function EmptyState({ icon, title, children, action, illustration }: { icon?: ReactNode; title: string; children?: ReactNode; action?: ReactNode; illustration?: boolean }) {
   return (
     <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
-      {icon && <div className="mb-3 rounded-full bg-slate-100 p-3 text-slate-500">{icon}</div>}
-      <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+      {illustration ? (
+        <div className="relative mb-5">
+          <BusMark className="relative w-32" />
+          <div className="mx-auto -mt-1 h-2 w-28 rounded-[50%] bg-slate-900/10 blur-[2px]" />
+        </div>
+      ) : (
+        icon && <div className="mb-3 rounded-2xl bg-accent-50 p-3 text-accent-700">{icon}</div>
+      )}
+      <h3 className="text-base font-semibold text-slate-900">{title}</h3>
       {children && <p className="mt-1 max-w-sm text-sm text-slate-500">{children}</p>}
       {action && <div className="mt-4">{action}</div>}
     </div>
@@ -181,7 +193,7 @@ export function Notice({ level = 'info', children, title }: { level?: 'info' | '
   return (
     <div
       className={clsx(
-        'flex gap-3 rounded-lg border px-4 py-3 text-sm',
+        'flex gap-3 rounded-xl border px-4 py-3 text-sm',
         level === 'info' && 'border-blue-200 bg-blue-50 text-blue-900',
         level === 'warning' && 'border-amber-200 bg-amber-50 text-amber-900',
         level === 'error' && 'border-red-200 bg-red-50 text-red-900',
@@ -249,14 +261,14 @@ export function Modal({ open, onClose, title, description, children, footer, siz
   if (!open) return null
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" onClick={onClose} aria-hidden />
+      <div className="animate-fade-in absolute inset-0 bg-black/50 backdrop-blur-[2px]" onClick={onClose} aria-hidden />
       <div
         ref={panel}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         className={clsx(
-          'relative flex max-h-[92dvh] w-full flex-col rounded-t-2xl bg-surface shadow-xl sm:rounded-2xl',
+          'animate-sheet-in relative flex max-h-[92dvh] w-full flex-col rounded-t-3xl bg-surface shadow-xl sm:rounded-3xl',
           size === 'md' && 'sm:max-w-lg',
           size === 'lg' && 'sm:max-w-2xl',
           size === 'xl' && 'sm:max-w-5xl',

@@ -1,5 +1,7 @@
 import { collection, doc, onSnapshot, writeBatch, type Firestore } from 'firebase/firestore'
 import { stripUndefined } from './memoryStore'
+import { withCurrentColor } from './defaults'
+import type { Category } from '../domain/types'
 import { emptyData, TABLES, type AppData, type DataStore, type SyncStatus, type TableName, type WriteOp } from './types'
 
 /** Firestore erlaubt max. 500 Operationen je Batch. */
@@ -23,6 +25,8 @@ export class FirestoreStore implements DataStore {
   private loadedTables = new Set<TableName>()
   private pendingTables = new Set<TableName>()
   private cacheTables = new Set<TableName>()
+  /** Wartende Speichervorgänge je Tabelle – aufgelöst beim nächsten Snapshot (= lokal gesichert). */
+  private localWaiters = new Map<TableName, (() => void)[]>()
   private status: SyncStatus = { loaded: false, online: navigator.onLine, pendingWrites: false, fromCache: true }
   ready: Promise<void>
   private resolveReady!: () => void
@@ -38,7 +42,9 @@ export class FirestoreStore implements DataStore {
         collection(db, 'books', bookId, table),
         { includeMetadataChanges: true },
         (snap) => {
-          const docs = snap.docs.map((d) => ({ ...d.data(), id: d.id }))
+          let docs = snap.docs.map((d) => ({ ...d.data(), id: d.id }))
+          // Alte Standardfarben von Kategorien an das aktuelle Design anpassen (ohne zu schreiben)
+          if (table === 'categories') docs = docs.map((c) => withCurrentColor(c as Category))
           this.data = { ...this.data, [table]: docs }
           this.loadedTables.add(table)
           if (snap.metadata.hasPendingWrites) this.pendingTables.add(table)
@@ -46,6 +52,11 @@ export class FirestoreStore implements DataStore {
           if (snap.metadata.fromCache) this.cacheTables.add(table)
           else this.cacheTables.delete(table)
           if (this.loadedTables.size === TABLES.length) this.resolveReady()
+          const waiting = this.localWaiters.get(table)
+          if (waiting) {
+            this.localWaiters.delete(table)
+            waiting.forEach((w) => w())
+          }
           this.updateStatus()
           this.listeners.forEach((l) => l())
         },
@@ -100,6 +111,9 @@ export class FirestoreStore implements DataStore {
 
   async commit(ops: WriteOp[]): Promise<void> {
     if (ops.length === 0) return
+    // Vor dem Schreiben anmelden, damit kein Snapshot verpasst wird
+    const tables = [...new Set(ops.map((o) => o.table))]
+    const savedLocally = Promise.all(tables.map((t) => new Promise<void>((res) => this.localWaiters.set(t, [...(this.localWaiters.get(t) ?? []), res]))))
     const commits: Promise<void>[] = []
     for (let i = 0; i < ops.length; i += BATCH_LIMIT) {
       const batch = writeBatch(this.db)
@@ -109,11 +123,16 @@ export class FirestoreStore implements DataStore {
       }
       commits.push(batch.commit())
     }
-    // Die Änderungen stehen sofort im lokalen Cache und sind überall in der App sichtbar.
     // Auf den Server wird nicht gewartet – so schließen sich Formulare sofort, auch offline oder
     // bei langsamer Verbindung. Fehler (z. B. fehlende Berechtigung) meldet onError als Hinweis;
     // den Übertragungsstand zeigt die Statusanzeige („Wird synchronisiert …“).
     Promise.all(commits).catch((e) => this.errorListeners.forEach((l) => l(e)))
+    // Gewartet wird nur, bis die Änderung auf dem Gerät gesichert ist: Firestore schreibt sie in
+    // den lokalen Speicher und meldet erst danach einen Snapshot. Wer die App direkt nach dem
+    // Speichern schließt oder neu lädt, verliert so nichts. Sicherheitsnetz: höchstens 2 Sekunden.
+    // Große Mengen (z. B. Backup) kommen in mehreren Paketen – dann auf alle warten (max. 15 s)
+    if (commits.length > 1) await Promise.race([Promise.all(commits).catch(() => undefined), new Promise<void>((res) => setTimeout(res, 15_000))])
+    else await Promise.race([savedLocally, new Promise<void>((res) => setTimeout(res, 2000))])
   }
 
   dispose() {

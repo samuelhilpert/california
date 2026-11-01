@@ -10,6 +10,7 @@ import { formatEuro, formatKm } from '../lib/format'
 import { Badge, Button, Card, EmptyState, Field, Input, Modal, PageHeader } from '../components/ui'
 import { Loading } from '../components/Loading'
 import { errorMessage, useFeedback } from '../components/feedback-context'
+import { PersonAvatar } from '../components/Person'
 
 export function PeoplePage() {
   const data = useAppData()
@@ -84,9 +85,7 @@ export function PeoplePage() {
         return (
           <li key={p.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center">
             <div className="flex min-w-0 flex-1 items-center gap-3">
-              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${p.active ? 'bg-brand-50 text-brand-800' : 'bg-slate-100 text-slate-500'}`}>
-                {p.name.slice(0, 2).toUpperCase()}
-              </div>
+              <PersonAvatar id={p.id} name={p.name} size="lg" className={p.active ? undefined : 'opacity-40'} />
               <div className="min-w-0">
                 <div className="flex items-center gap-2 font-medium text-slate-900">{p.name}{p.email ? <Badge tone="brand">Mitglied</Badge> : <Badge>ohne Konto</Badge>}{!p.active && <Badge>deaktiviert</Badge>}</div>
                 <div className="text-xs text-slate-500">

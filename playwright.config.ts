@@ -22,6 +22,8 @@ export default defineConfig({
     locale: 'de-DE',
     timezoneId: 'Europe/Berlin',
     trace: 'retain-on-failure',
+    // Ohne Ein-/Ausblend-Animationen: Barrierefreiheits-Prüfungen sehen sonst halb durchsichtige Elemente
+    reducedMotion: 'reduce',
     screenshot: 'only-on-failure',
   },
   projects: [

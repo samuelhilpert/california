@@ -14,6 +14,7 @@ import { Loading } from '../components/Loading'
 import { BalancePanel } from '../components/BalancePanel'
 import { CloseSettlementButton, SettlementSnapshotList } from '../components/SettlementSnapshots'
 import { errorMessage, useFeedback } from '../components/feedback-context'
+import { PersonChip } from '../components/Person'
 
 const STORAGE_KEY = 'settlement-period'
 
@@ -268,7 +269,7 @@ export function SettlementPage() {
                         <td className="tabular px-4 py-2.5 text-right font-medium">{formatEuro(t.costCents)}</td>
                         <td className="px-4 py-2.5">
                           <div className="flex flex-wrap gap-1">
-                            {t.shares.map((x) => <Badge key={x.personId}>{pName.get(x.personId) ?? '?'} <span className="tabular text-slate-600">{formatEuro(x.cents)}</span></Badge>)}
+                            {t.shares.map((x) => <PersonChip key={x.personId} id={x.personId} label={`${pName.get(x.personId) ?? '?'} ${formatEuro(x.cents)}`} />)}
                           </div>
                         </td>
                       </tr>

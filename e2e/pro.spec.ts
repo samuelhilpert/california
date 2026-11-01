@@ -22,10 +22,16 @@ test('Pro-Modus: Statistik, Karte mit Ländern, Rückblick, Zusatzfelder @mobile
   await resetEmulators()
   await stubMaps(page)
   const errors: string[] = []
-  page.on('pageerror', (e) => errors.push(e.message))
+  // Safari meldet beim Neuladen abgebrochene Anfragen an die Emulatoren als Fehler – das ist erwartet
+  page.on('pageerror', (e) => { if (!/127\.0\.0\.1:\d+\/.*due to access control checks/.test(e.message)) errors.push(e.message) })
   await register(page, `pro-${info.project.name}@example.com`, 'Anna')
   await setupBook(page)
   await restoreFixture(page)
+  // Sofort neu laden: Gespeichertes darf nicht verloren gehen (wartet auf lokale Sicherung)
+  await page.goto('/')
+  await page.reload()
+  await expect(page.getByText('Willkommen! Noch keine Daten vorhanden.')).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Letzte Fahrten' })).toBeVisible()
 
   // Ohne Pro-Modus kein Menüpunkt und keine Zusatzfelder
   await expect(page.getByRole('link', { name: /Entdecken|^Pro$/ })).toHaveCount(0)

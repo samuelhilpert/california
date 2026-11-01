@@ -149,7 +149,7 @@ export function ExpensesPage() {
       <Card padded={false}>
         {view === 'expenses' ? (
           filteredExpenses.length === 0 ? (
-            <EmptyState icon={<Receipt className="h-6 w-6" />} title={hasFilter ? 'Keine Ausgaben für diese Filter' : 'Noch keine Kosten erfasst'}
+            <EmptyState icon={<Receipt className="h-6 w-6" />} illustration={!hasFilter} title={hasFilter ? 'Keine Ausgaben für diese Filter' : 'Noch keine Kosten erfasst'}
               action={!hasFilter && <Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={openNew}>Erste Ausgabe erfassen</Button>}>
               {!hasFilter && 'Lege z. B. die Leasingrate als monatlich wiederkehrende Ausgabe an.'}
             </EmptyState>

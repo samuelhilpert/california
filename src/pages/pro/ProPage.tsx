@@ -13,6 +13,7 @@ import { ReviewTab } from './ReviewTab'
 import { FuelTab } from './FuelTab'
 import { LeasingCard } from './LeasingCard'
 import { AchievementsTab } from './AchievementsTab'
+import { personColor, personSlot } from '../../lib/personColors'
 
 const MapTab = lazy(() => import('./MapTab').then((m) => ({ default: m.MapTab })))
 
@@ -114,6 +115,7 @@ function StatsTab({ year, years, today }: { year: number | null; years: number[]
   const perKmPrev = prev && prev.km ? prev.cost / 100 / prev.km : null
   const cat = new Map(data.categories.map((x) => [x.id, x]))
   const name = (id: string) => personName(data.persons, id)
+  const pc = (id: string) => personColor(personSlot(data.persons, id))
   const periodWord = year == null ? 'Jahr' : 'Monat'
 
   if (k.trips === 0 && c.totalCents === 0) {
@@ -139,7 +141,7 @@ function StatsTab({ year, years, today }: { year: number | null; years: number[]
           </Card>
           <Card>
             <CardTitle sub="Anteilig: Fahrt-km ÷ Beteiligte">Je Person</CardTitle>
-            <BarList rows={k.perPerson.map((p) => ({ key: p.personId, label: name(p.personId), value: p.km, sub: `${p.trips} Fahrt(en)` }))} format={(v) => formatKm(Math.round(v))} />
+            <BarList rows={k.perPerson.map((p) => ({ key: p.personId, label: name(p.personId), value: p.km, sub: `${p.trips} Fahrt(en)`, color: pc(p.personId) }))} format={(v) => formatKm(Math.round(v))} />
             {k.longest && (
               <p className="mt-4 border-t border-slate-100 pt-3 text-sm text-slate-600">
                 Längste Fahrt: <strong className="text-slate-900">{formatKm(k.longest.km)}</strong> am {formatDate(k.longest.startDate)}
@@ -165,7 +167,7 @@ function StatsTab({ year, years, today }: { year: number | null; years: number[]
           <Card>
             <CardTitle sub="Laut „Bezahlt von“">Wer hat bezahlt?</CardTitle>
             {c.paidBy.length === 0 ? <p className="text-sm text-slate-500">Bei keiner Ausgabe ist „Bezahlt von“ eingetragen.</p> : (
-              <BarList rows={c.paidBy.map((p) => ({ key: p.personId, label: name(p.personId), value: p.cents }))} format={formatEuro} />
+              <BarList rows={c.paidBy.map((p) => ({ key: p.personId, label: name(p.personId), value: p.cents, color: pc(p.personId) }))} format={formatEuro} />
             )}
             {c.unknownPayerCents > 0 && <p className="mt-3 text-xs text-slate-500">{formatEuro(c.unknownPayerCents)} ohne Angabe bzw. gemeinsames Konto.</p>}
           </Card>
@@ -188,7 +190,7 @@ function StatsTab({ year, years, today }: { year: number | null; years: number[]
           <Card>
             <CardTitle sub={`${u.nights} Nächte insgesamt`}>Nächte je Person</CardTitle>
             {u.perPerson.length === 0 ? <p className="text-sm text-slate-500">Keine mehrtägigen Fahrten. Nächte zählen, wenn bei einer Fahrt ein Enddatum eingetragen ist.</p> : (
-              <BarList rows={u.perPerson.map((p) => ({ key: p.personId, label: name(p.personId), value: p.nights, sub: `${p.days} Tag(e) unterwegs` }))} format={(v) => `${formatInt(v)} Nächte`} />
+              <BarList rows={u.perPerson.map((p) => ({ key: p.personId, label: name(p.personId), value: p.nights, sub: `${p.days} Tag(e) unterwegs`, color: pc(p.personId) }))} format={(v) => `${formatInt(v)} Nächte`} />
             )}
           </Card>
         </div>

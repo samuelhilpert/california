@@ -6,6 +6,7 @@ import { addPerson } from '../lib/store/repo'
 import { useMyPerson } from '../lib/store/context'
 import { Button, Input } from './ui'
 import { errorMessage, useFeedback } from './feedback-context'
+import { PersonAvatar } from './Person'
 
 /**
  * Mehrfachauswahl als Chips. Zeigt alle aktiven Personen sowie bereits ausgewählte, inzwischen
@@ -51,14 +52,15 @@ export function PersonMultiSelect({ persons, value, onChange, invalid }: { perso
               onClick={() => toggle(p.id)}
               aria-pressed={on}
               className={clsx(
-                'inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-sm font-medium transition-colors',
+                'inline-flex h-9 items-center gap-2 rounded-full border px-3 text-sm font-medium transition-colors',
                 on ? 'border-brand-600 bg-brand-50 text-brand-800' : 'border-slate-200 bg-surface text-slate-600 hover:border-slate-300 hover:bg-slate-50',
               )}
             >
-              {on ? <Check className="h-3.5 w-3.5" /> : <span className="h-3.5 w-3.5 rounded-full border border-slate-300" />}
+              <PersonAvatar id={p.id} name={p.name} size="sm" />
               {p.name}
               {p.id === me?.id && <span className="text-xs font-normal text-slate-500">(du)</span>}
               {!p.active && <span className="text-xs font-normal text-slate-500">(inaktiv)</span>}
+              {on && <Check className="h-3.5 w-3.5" aria-hidden />}
             </button>
           )
         })}

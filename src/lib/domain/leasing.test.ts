@@ -42,6 +42,21 @@ describe('Leasing-Kilometer', () => {
   })
 })
 
+describe('Leasing-Toleranz', () => {
+  const cfg = { start: '2026-01-01', months: 12, kmPerYear: 10_000, extraKmCents: 10, lessKmCents: 5, toleranceKm: 2500, startOdometer: 0 }
+  const fuelAt = (km: number): FuelFill[] => [{ id: 'f', date: '2026-12-31', odometer: km, fullTank: true, amountCents: 1, createdAt: at, updatedAt: at }]
+  it('innerhalb der Toleranz: nichts abzurechnen', () => {
+    const s = leasingStatus(cfg, [], fuelAt(12_000), '2027-02-01')
+    expect(s).toMatchObject({ deltaKm: 2000, withinTolerance: true, billableKm: 0, costCents: 0 })
+  })
+  it('darüber: nur der Teil jenseits der Toleranz', () => {
+    const s = leasingStatus(cfg, [], fuelAt(13_000), '2027-02-01')
+    expect(s).toMatchObject({ deltaKm: 3000, withinTolerance: false, billableKm: 500, costCents: 5000 })
+    const less = leasingStatus(cfg, [], fuelAt(6_000), '2027-02-01')
+    expect(less).toMatchObject({ deltaKm: -4000, billableKm: -1500, costCents: -7500 })
+  })
+})
+
 describe('Erfolge', () => {
   const trips = [
     trip('1', '2026-01-09', 300, ['a'], { endDate: '2026-01-11' }), // Fr, 2 Nächte, Winter

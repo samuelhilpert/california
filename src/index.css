@@ -2,75 +2,151 @@
 
 @theme {
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Nur für den Logo-Schriftzug */
+  --font-display: "Bricolage Grotesque Variable", "Inter Variable", ui-sans-serif, system-ui, sans-serif;
   --color-surface: #ffffff;
+
+  /*
+   * Neutrale Grautöne nach macOS-Vorbild, ganz leicht warm. Die App nutzt durchgehend slate-*;
+   * hier werden die Werte zentral ersetzt. Kontraste geprüft: 500 auf Hintergrund ≥ 4,5:1.
+   * Hauptfarbe (brand) = Graphit wie das Grenadillschwarz des Busses; Zweitfarbe (accent) =
+   * Sandwick-Gold wie die Polster – auch für Diagramme (chart-1, geprüft hell und dunkel).
+   */
+  --color-slate-50: #f5f4f2;
+  --color-slate-100: #ebeae7;
+  --color-slate-200: #dddcd8;
+  --color-slate-300: #c8c7c3;
+  --color-slate-400: #a9a8a4;
+  --color-slate-500: #6e6d6a;
+  --color-slate-600: #545351;
+  --color-slate-700: #3d3c3a;
+  --color-slate-800: #2a2a2b;
+  --color-slate-900: #1d1d1f;
+  --color-slate-950: #111112;
+
+  /* Zweitfarbe: Sandwick-Gold – sparsam für Hervorhebungen; als Text nur accent-700 */
+  --color-accent-50: #f8f1e6;
+  --color-accent-100: #efe2cc;
+  --color-accent-500: #b5843f;
+  --color-accent-600: #9c7a4c;
+  --color-accent-700: #84653d;
+
+  --shadow-card: 0 1px 2px rgb(60 40 20 / 0.04), 0 6px 20px -12px rgb(60 40 20 / 0.12);
+  --radius-card: 1rem;
+
+  /* Dezente Bewegungen – bei „Bewegung reduzieren“ abgeschaltet (siehe unten) */
+  --animate-fade-in: fade-in 160ms ease-out both;
+  --animate-sheet-in: sheet-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-toast-in: toast-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-pop: pop 420ms cubic-bezier(0.2, 0.8, 0.2, 1.2) both;
+
+  @keyframes fade-in { from { opacity: 0 } }
+  @keyframes sheet-in { from { opacity: 0; transform: translateY(16px) scale(0.985) } }
+  @keyframes toast-in { from { opacity: 0; transform: translateY(12px) } }
+  @keyframes pop { 0% { transform: scale(0.6); opacity: 0 } 70% { transform: scale(1.08); opacity: 1 } 100% { transform: scale(1) } }
   --color-on-brand: #ffffff;
-  --color-brand-50: #f0fdfa;
-  --color-brand-100: #ccfbf1;
-  --color-brand-200: #99f6e4;
-  --color-brand-500: #14b8a6;
-  --color-brand-600: #0d9488;
-  --color-brand-700: #0f766e;
-  --color-brand-800: #115e59;
-  --color-brand-900: #134e4a;
+  --color-brand-50: #efefef;
+  --color-brand-100: #e3e3e5;
+  --color-brand-200: #cfcfd3;
+  --color-brand-500: #6e6e73;
+  --color-brand-600: #48484a;
+  --color-brand-700: #2c2c2e;
+  --color-brand-800: #1d1d1f;
+  --color-brand-900: #111112;
 
-  /* Diagramme: eine Reihe in der Markenfarbe; Kalender als einfarbige Stufen hell → dunkel */
-  --color-chart-1: #0d9488;
-  --color-chart-grid: #e2e8f0;
-  --color-chart-axis: #cbd5e1;
-  --color-heat-0: #f1f5f9;
-  --color-heat-1: #99f6e4;
-  --color-heat-2: #2dd4bf;
-  --color-heat-3: #0d9488;
-  --color-heat-4: #115e59;
+  /* Diagramme: eine Reihe in Sandwick-Gold; Kalender als einfarbige Stufen hell → dunkel */
+  --color-chart-1: #b5843f;
+  --color-chart-grid: #e8e7e3;
+  --color-chart-axis: #c8c7c3;
+  --color-heat-0: #ebeae7;
+  --color-heat-1: #ead9bb;
+  --color-heat-2: #d5ae73;
+  --color-heat-3: #b5843f;
+  --color-heat-4: #7d5a2a;
 
-  /* Karte (Pro-Modus) */
-  --color-map-sea: #dce8f0;
-  --color-map-land: #f8fafc;
-  --color-map-border: #b6c2cf;
 }
 
 /*
  * Dunkles Design: Statt jede Komponente mit dark:-Klassen zu versehen, werden die Farbskalen
  * umgedreht. Helle Töne (50–200) werden zu dunklen Flächen, dunkle Töne (700–900) zu hellem Text.
  */
+:root {
+  /*
+   * Werte, die nur per var() im Code (style-Attribute, Karte) genutzt werden. Tailwind würde sie
+   * aus @theme entfernen, weil keine Klasse sie verwendet – daher hier als normale Variablen.
+   */
+  /* Personenfarben: feste Reihenfolge, farbenblind-geprüft (Dataviz-Referenzpalette) */
+  --color-person-1: #2a78d6;
+  --color-person-2: #eb6834;
+  --color-person-3: #1baf7a;
+  --color-person-4: #eda100;
+  --color-person-5: #e87ba4;
+  --color-person-6: #008300;
+  --color-person-7: #6250d6;
+  --color-person-8: #e34948;
+
+  /* Karte (Pro-Modus) */
+  --color-map-sea: #dde5ea;
+  --color-map-land: #fbfaf8;
+  --color-map-border: #c3c1bc;
+}
+
 :root.dark {
   color-scheme: dark;
-  --color-surface: #111a2b;
-  --color-on-brand: #042f2e;
+  --color-surface: #232325;
+  --color-on-brand: #1d1d1f;
 
-  --color-slate-50: #0b1220;
-  --color-slate-100: #1a2333;
-  --color-slate-200: #273244;
-  --color-slate-300: #3a4659;
-  --color-slate-400: #7b8799;
-  --color-slate-500: #9aa5b5;
-  --color-slate-600: #b4bdca;
-  --color-slate-700: #cfd6e0;
-  --color-slate-800: #e2e8f0;
-  --color-slate-900: #f1f5f9;
-  --color-slate-950: #f8fafc;
+  /* Dunkel nach macOS-Vorbild */
+  --color-slate-50: #18181a;
+  --color-slate-100: #2c2c2e;
+  --color-slate-200: #3a3a3c;
+  --color-slate-300: #4a4a4d;
+  --color-slate-400: #7a797e;
+  --color-slate-500: #9a999e;
+  --color-slate-600: #b4b3b8;
+  --color-slate-700: #d1d1d6;
+  --color-slate-800: #e5e5ea;
+  --color-slate-900: #f2f2f7;
+  --color-slate-950: #fafafa;
 
-  --color-brand-50: #0c2a2a;
-  --color-brand-100: #134e4a;
-  --color-brand-200: #1f5f5a;
-  --color-brand-500: #2dd4bf;
-  --color-brand-600: #2dd4bf;
-  --color-brand-700: #2dd4bf;
-  --color-brand-800: #5eead4;
-  --color-brand-900: #99f6e4;
+  --color-accent-50: #2e2619;
+  --color-accent-100: #3d321f;
+  --color-accent-500: #b5843f;
+  --color-accent-600: #d2b080;
+  --color-accent-700: #d2b080;
 
-  --color-chart-1: #0fa596;
-  --color-chart-grid: #273244;
-  --color-chart-axis: #3a4659;
-  --color-heat-0: #1a2333;
-  --color-heat-1: #134e4a;
-  --color-heat-2: #0f766e;
-  --color-heat-3: #0fa596;
-  --color-heat-4: #5eead4;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3);
 
-  --color-map-sea: #0b1424;
-  --color-map-land: #1c2738;
-  --color-map-border: #3a4659;
+  --color-brand-50: #343436;
+  --color-brand-100: #3e3e41;
+  --color-brand-200: #4a4a4d;
+  --color-brand-500: #e5e5ea;
+  --color-brand-600: #e5e5ea;
+  --color-brand-700: #e5e5ea;
+  --color-brand-800: #f2f2f7;
+  --color-brand-900: #ffffff;
+
+  --color-chart-1: #b5843f;
+  --color-chart-grid: #38383a;
+  --color-chart-axis: #4a4a4d;
+  --color-heat-0: #2c2c2e;
+  --color-heat-1: #4a3a24;
+  --color-heat-2: #7a5c30;
+  --color-heat-3: #b5843f;
+  --color-heat-4: #e2c08a;
+
+  --color-person-1: #3987e5;
+  --color-person-2: #d95926;
+  --color-person-3: #199e70;
+  --color-person-4: #c98500;
+  --color-person-5: #d55181;
+  --color-person-6: #008300;
+  --color-person-7: #9085e9;
+  --color-person-8: #e66767;
+
+  --color-map-sea: #141a1d;
+  --color-map-land: #2c2c2e;
+  --color-map-border: #4f4e52;
 
   --color-amber-50: #2a1f0a;
   --color-amber-200: #5c4310;
@@ -106,6 +182,8 @@
     font-feature-settings: "cv11", "ss01";
   }
   .tabular { font-variant-numeric: tabular-nums; }
+  h1, h2 { letter-spacing: -0.02em; }
+  .font-display { font-family: var(--font-display); letter-spacing: -0.01em; }
   :focus-visible { @apply outline-2 outline-offset-2 outline-brand-600; }
 }
 
@@ -117,3 +195,7 @@
 .trip-map .leaflet-interactive:focus { outline: none; }
 .trip-map-fit { display: flex; width: 34px; height: 34px; align-items: center; justify-content: center; background: #fff; color: #1e293b; cursor: pointer; }
 .trip-map-fit:hover { background: #f4f4f4; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
+}

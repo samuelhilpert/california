@@ -14,11 +14,12 @@ const km = (v: number) => `${formatInt(Math.round(v))} km`
 function LeasingForm({ initial, onClose }: { initial?: LeasingConfig; onClose: () => void }) {
   const { toast } = useFeedback()
   const [start, setStart] = useState(initial?.start ?? '')
-  const [months, setMonths] = useState(String(initial?.months ?? 36))
-  const [kmPerYear, setKmPerYear] = useState(numberToInput(initial?.kmPerYear ?? 15000))
+  const [months, setMonths] = useState(String(initial?.months ?? 48))
+  const [kmPerYear, setKmPerYear] = useState(numberToInput(initial?.kmPerYear ?? 10000))
   const [startOdo, setStartOdo] = useState(numberToInput(initial?.startOdometer))
   const [extra, setExtra] = useState(numberToInput(initial?.extraKmCents))
   const [less, setLess] = useState(numberToInput(initial?.lessKmCents))
+  const [tolerance, setTolerance] = useState(numberToInput(initial?.toleranceKm))
   const [error, setError] = useState<string>()
 
   const save = async () => {
@@ -27,11 +28,12 @@ function LeasingForm({ initial, onClose }: { initial?: LeasingConfig; onClose: (
     const o = startOdo.trim() ? parseNumberInput(startOdo) : undefined
     const e = extra.trim() ? parseNumberInput(extra) : undefined
     const l = less.trim() ? parseNumberInput(less) : undefined
+    const t = tolerance.trim() ? parseNumberInput(tolerance) : undefined
     if (!start) return setError('Bitte den Vertragsbeginn angeben.')
     if (!Number.isInteger(m) || m < 1 || m > 120) return setError('Bitte eine Laufzeit zwischen 1 und 120 Monaten angeben.')
     if (k == null || k <= 0) return setError('Bitte die vereinbarten Kilometer pro Jahr angeben.')
-    if (o === null || e === null || l === null) return setError('Bitte nur Zahlen eingeben.')
-    const cfg: LeasingConfig = { start, months: m, kmPerYear: k, ...(o != null ? { startOdometer: o } : {}), ...(e != null ? { extraKmCents: e } : {}), ...(l != null ? { lessKmCents: l } : {}) }
+    if (o === null || e === null || l === null || t === null || (t != null && t < 0)) return setError('Bitte nur Zahlen eingeben.')
+    const cfg: LeasingConfig = { start, months: m, kmPerYear: k, ...(o != null ? { startOdometer: o } : {}), ...(e != null ? { extraKmCents: e } : {}), ...(l != null ? { lessKmCents: l } : {}), ...(t != null && t > 0 ? { toleranceKm: t } : {}) }
     try {
       await setSetting(LEASING_SETTING, cfg)
       toast('Leasingvertrag gespeichert.')
@@ -54,6 +56,9 @@ function LeasingForm({ initial, onClose }: { initial?: LeasingConfig; onClose: (
         </Field>
         <Field label="Preis je Mehrkilometer" htmlFor="l-extra" optional hint="Laut Vertrag, z. B. 8 Cent"><Input id="l-extra" inputMode="decimal" value={extra} onChange={(ev) => setExtra(ev.target.value)} suffix="Cent" /></Field>
         <Field label="Vergütung je Minderkilometer" htmlFor="l-less" optional hint="Laut Vertrag, oft etwas weniger"><Input id="l-less" inputMode="decimal" value={less} onChange={(ev) => setLess(ev.target.value)} suffix="Cent" /></Field>
+        <Field label="Toleranz" htmlFor="l-tol" optional hint="Über die ganze Laufzeit, z. B. 2.500 km. Abweichungen bis dahin kosten nichts, darüber zählt nur der Teil jenseits der Toleranz.">
+          <Input id="l-tol" inputMode="decimal" value={tolerance} onChange={(ev) => setTolerance(ev.target.value)} suffix="km" />
+        </Field>
         <button type="submit" className="hidden" />
       </form>
     </Modal>
@@ -87,7 +92,7 @@ export function LeasingCard({ today }: { today: string }) {
   return (
     <Card>
       <CardTitle
-        sub={`${formatDate(cfg.start)} bis ${formatDate(s.end)} · ${km(cfg.kmPerYear)} pro Jahr · Kontingent ${km(s.limitKm)}`}
+        sub={`${formatDate(cfg.start)} bis ${formatDate(s.end)} · ${km(cfg.kmPerYear)} pro Jahr · Kontingent ${km(s.limitKm)}${cfg.toleranceKm ? ` · Toleranz ± ${km(cfg.toleranceKm)}` : ''}`}
         action={<Button variant="ghost" size="sm" icon={<Pencil className="h-4 w-4" />} onClick={() => setEditing(true)}>Vertrag</Button>}
       >
         <span className="flex items-center gap-2"><FileSignature className="h-5 w-5 text-brand-700" />Leasing-Kilometer</span>
@@ -108,15 +113,22 @@ export function LeasingCard({ today }: { today: string }) {
         <div className="rounded-lg bg-slate-50 p-3">
           <div className="text-xs text-slate-500">{s.finished ? 'Am Vertragsende' : 'Prognose Vertragsende'}</div>
           <div className="text-lg font-semibold text-slate-900">{km(s.prognosisKm)}</div>
-          <div className={clsx('mt-0.5 flex items-center gap-1 text-xs font-medium', over ? 'text-amber-700' : 'text-emerald-700')}>
-            {over ? <AlertTriangle className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+          <div className={clsx('mt-0.5 flex items-center gap-1 text-xs font-medium', over && !s.withinTolerance ? 'text-amber-700' : 'text-emerald-700')}>
+            {over && !s.withinTolerance ? <AlertTriangle className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
             {over ? `${km(s.deltaKm)} über dem Kontingent` : `${km(-s.deltaKm)} unter dem Kontingent`}
           </div>
+          {cfg.toleranceKm ? (
+            <div className="mt-0.5 text-xs text-slate-500">
+              {s.withinTolerance ? 'innerhalb der Toleranz' : `${km(Math.abs(s.billableKm))} jenseits der Toleranz`}
+            </div>
+          ) : null}
         </div>
         <div className="rounded-lg bg-slate-50 p-3">
-          <div className="text-xs text-slate-500">{over ? 'Voraussichtliche Nachzahlung' : 'Voraussichtliche Gutschrift'}</div>
-          <div className="text-lg font-semibold text-slate-900">{s.costCents != null ? formatEuro(Math.abs(s.costCents)) : '–'}</div>
-          <div className="mt-0.5 text-xs text-slate-500">{s.costCents != null ? 'laut Preis im Vertrag' : 'Preis je km im Vertrag eintragen'}</div>
+          <div className="text-xs text-slate-500">{s.withinTolerance ? 'Voraussichtlich' : over ? 'Voraussichtliche Nachzahlung' : 'Voraussichtliche Gutschrift'}</div>
+          <div className="text-lg font-semibold text-slate-900">{s.withinTolerance ? 'nichts abzurechnen' : s.costCents != null ? formatEuro(Math.abs(s.costCents)) : '–'}</div>
+          <div className="mt-0.5 text-xs text-slate-500">
+            {s.withinTolerance ? `Abweichung liegt in der Toleranz von ± ${km(cfg.toleranceKm ?? 0)}` : s.costCents != null ? (cfg.toleranceKm ? 'laut Vertrag, nach Abzug der Toleranz' : 'laut Preis im Vertrag') : 'Preis je km im Vertrag eintragen'}
+          </div>
         </div>
         <div className="rounded-lg bg-slate-50 p-3">
           <div className="text-xs text-slate-500">Noch verfügbar</div>

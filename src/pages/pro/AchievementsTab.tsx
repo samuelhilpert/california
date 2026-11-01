@@ -51,11 +51,11 @@ export function AchievementsTab() {
               const Icon = ICONS[b.icon]
               return (
                 <li key={b.id}>
-                  <Card className="h-full border-brand-200 bg-brand-50/50">
-                    <span className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-full bg-chart-1 text-white shadow-sm"><Icon className="h-5 w-5" /></span>
+                  <Card className="h-full border-accent-100 bg-accent-50/60">
+                    <span className="animate-pop mb-3 inline-flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-accent-500 to-accent-700 text-white shadow-sm"><Icon className="h-5 w-5" /></span>
                     <div className="font-semibold text-slate-900">{b.title}</div>
                     <div className="mt-0.5 text-sm text-slate-600">{b.description}</div>
-                    <div className="mt-2 text-xs font-medium text-brand-800">am {formatDate(b.achievedAt)}</div>
+                    <div className="mt-2 text-xs font-medium text-accent-700">am {formatDate(b.achievedAt)}</div>
                   </Card>
                 </li>
               )

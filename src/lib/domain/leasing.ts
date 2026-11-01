@@ -19,6 +19,11 @@ export interface LeasingConfig {
   extraKmCents?: number
   /** Vergütung je Minderkilometer in Cent. */
   lessKmCents?: number
+  /**
+   * Toleranz in km über die gesamte Laufzeit (z. B. 2.500): Abweichungen bis zu diesem Wert werden
+   * nicht abgerechnet, darüber nur der Teil jenseits der Toleranz.
+   */
+  toleranceKm?: number
 }
 
 export const LEASING_SETTING = 'leasing'
@@ -37,6 +42,10 @@ export interface LeasingStatus {
   prognosisKm: number
   /** Prognose − Kontingent (positiv = Mehrkilometer). */
   deltaKm: number
+  /** Prognose liegt innerhalb der Toleranz – dann wird nichts abgerechnet. */
+  withinTolerance: boolean
+  /** Abzurechnende km nach Abzug der Toleranz (positiv = Mehr-, negativ = Minderkilometer). */
+  billableKm: number
   /** Voraussichtliche Nachzahlung (positiv) bzw. Gutschrift (negativ) in Cent, falls Preise hinterlegt. */
   costCents: number | null
   /** Noch verfügbare km bis Vertragsende und je verbleibendem Monat. */
@@ -71,6 +80,8 @@ export function leasingStatus(cfg: LeasingConfig, trips: Trip[], fuel: FuelFill[
   const expectedToDate = (limitKm * daysElapsed) / daysTotal
   const prognosisKm = finished || daysElapsed === 0 ? drivenKm : (drivenKm / daysElapsed) * daysTotal
   const deltaKm = Math.round(prognosisKm - limitKm)
+  const tolerance = Math.max(0, cfg.toleranceKm ?? 0)
+  const billableKm = Math.sign(deltaKm) * Math.max(0, Math.abs(deltaKm) - tolerance)
   const price = deltaKm > 0 ? cfg.extraKmCents : cfg.lessKmCents
   const remainingKm = Math.round(limitKm - drivenKm)
   const monthsLeft = (daysTotal - daysElapsed) / (365.25 / 12)
@@ -85,7 +96,9 @@ export function leasingStatus(cfg: LeasingConfig, trips: Trip[], fuel: FuelFill[
     expectedToDate: Math.round(expectedToDate),
     prognosisKm: Math.round(prognosisKm),
     deltaKm,
-    costCents: price != null && deltaKm !== 0 ? Math.round(deltaKm * price) : null,
+    withinTolerance: tolerance > 0 && billableKm === 0,
+    billableKm,
+    costCents: price != null && deltaKm !== 0 ? Math.round(billableKm * price) : null,
     remainingKm,
     remainingPerMonth: monthsLeft >= 0.5 ? Math.round(remainingKm / monthsLeft) : null,
     finished,

@@ -8,9 +8,10 @@ import { tripNights, tripPlaces } from '../../lib/domain/stats'
 import { todayIso } from '../../lib/domain/dates'
 import { flag, placeKey, useGeocode, type Place } from '../../lib/geo'
 import { formatDateSpan, formatEuro, formatInt, formatKm } from '../../lib/format'
-import { Badge, Button, Modal } from '../../components/ui'
+import { Button, Modal } from '../../components/ui'
+import { PersonChip } from '../../components/Person'
 
-const token = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#0d9488'
+const token = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#b5843f'
 
 /** Kleine Karte einer Fahrt: Start → Zwischenstationen → Ziel, nummeriert und verbunden. */
 function RouteMap({ points }: { points: { name: string; place: Place }[] }) {
@@ -107,7 +108,7 @@ export function TripDetailModal({ trip, onClose }: { trip: Trip; onClose: () => 
             {trip.personIds.map((id) => {
               const share = result?.shares.find((x) => x.personId === id)
               return (
-                <li key={id}><Badge tone="brand">{pName.get(id) ?? 'Unbekannt'}{share && ` · ${formatEuro(share.cents)}`}</Badge></li>
+                <li key={id}><PersonChip id={id} label={`${pName.get(id) ?? 'Unbekannt'}${share ? ` · ${formatEuro(share.cents)}` : ''}`} /></li>
               )
             })}
           </ul>

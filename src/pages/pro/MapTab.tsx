@@ -19,7 +19,7 @@ interface Stop {
 }
 
 /** Liest eine Farbe aus den Design-Tokens, damit Karte und Diagramme zusammenpassen (hell/dunkel). */
-const token = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#0d9488'
+const token = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#b5843f'
 const isDark = () => document.documentElement.classList.contains('dark')
 
 /**

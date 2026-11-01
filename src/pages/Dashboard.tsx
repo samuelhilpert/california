@@ -5,10 +5,14 @@ import { useAppData, useMyPerson, useSetting } from '../lib/store/context'
 import { buildSettlement, personRows } from '../lib/domain/settlement'
 import { todayIso } from '../lib/domain/dates'
 import { formatDate, formatEuro, formatKm, formatPricePerKm, formatStamp, formatInt, formatPercent } from '../lib/format'
-import { Badge, Bar, Button, Card, CardTitle, Disclosure, EmptyState, Notice, PageHeader, Stat } from '../components/ui'
+import { Bar, Button, Card, CardTitle, Disclosure, EmptyState, Notice, PageHeader, Stat } from '../components/ui'
 import { TripFormModal } from '../components/TripForm'
 import { ExpenseFormModal } from '../components/ExpenseForm'
 import { Loading } from '../components/Loading'
+import { PersonAvatar, PersonChip } from '../components/Person'
+import { BusMark } from '../components/BusMark'
+import { validateTripForCalc } from '../lib/domain/settlement'
+import { tripNights } from '../lib/domain/stats'
 
 const DETAILS_KEY = 'dashboard.detailsOpen'
 
@@ -73,7 +77,7 @@ export function DashboardPage() {
       {isEmpty ? (
         <Card>
           <EmptyState
-            icon={<Car className="h-6 w-6" />}
+            illustration
             title="Willkommen! Noch keine Daten vorhanden."
             action={
               <div className="flex flex-wrap justify-center gap-2">
@@ -93,6 +97,8 @@ export function DashboardPage() {
         </Card>
       ) : (
         <div className="space-y-6">
+          <BusStatus />
+
           <div className="grid grid-cols-2 gap-3">
             <Button variant="primary" className="h-14 text-base" icon={<Plus className="h-5 w-5" />} onClick={() => setTripOpen(true)}>Fahrt eintragen</Button>
             <Button className="h-14 text-base" icon={<Receipt className="h-5 w-5" />} onClick={() => setExpenseOpen(true)}>Ausgabe eintragen</Button>
@@ -124,7 +130,7 @@ export function DashboardPage() {
               <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {openTransfers.map((t) => (
                   <li key={`${t.fromPersonId}-${t.toPersonId}`} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
-                    <span><strong>{who(t.fromPersonId)}</strong> → <strong>{who(t.toPersonId)}</strong></span>
+                    <span className="flex items-center gap-1.5"><PersonAvatar id={t.fromPersonId} name={pName.get(t.fromPersonId) ?? '?'} size="sm" /><strong>{who(t.fromPersonId)}</strong> → <PersonAvatar id={t.toPersonId} name={pName.get(t.toPersonId) ?? '?'} size="sm" /><strong>{who(t.toPersonId)}</strong></span>
                     <span className="tabular font-semibold">{formatEuro(t.amountCents)}</span>
                   </li>
                 ))}
@@ -155,7 +161,7 @@ export function DashboardPage() {
                           {(t.from || t.to) && <span className="ml-2 font-normal text-slate-500">{[t.from, t.to].filter(Boolean).join(' → ')}</span>}
                         </div>
                         <div className="mt-1 flex flex-wrap gap-1">
-                          {t.personIds.map((id) => <Badge key={id}>{pName.get(id) ?? 'Unbekannt'}</Badge>)}
+                          {t.personIds.map((id) => <PersonChip key={id} id={id} />)}
                         </div>
                       </div>
                       <div className="text-right">
@@ -236,5 +242,50 @@ export function DashboardPage() {
       <TripFormModal open={tripOpen} onClose={() => setTripOpen(false)} persons={data.persons} trips={data.trips} settlements={data.settlements} />
       <ExpenseFormModal open={expenseOpen} onClose={() => setExpenseOpen(false)} categories={data.categories} persons={data.persons} />
     </>
+  )
+}
+
+/** Kopf der Übersicht: zuletzt unterwegs, Kilometerstand, dieses Jahr. */
+function BusStatus() {
+  const data = useAppData()
+  const me = useMyPerson()
+  const year = todayIso().slice(0, 4)
+  const valid = data.trips.filter((t) => validateTripForCalc(t) == null)
+  const last = [...valid].sort((a, b) => ((a.endDate ?? a.startDate) < (b.endDate ?? b.startDate) ? 1 : -1))[0]
+  const readings = [
+    ...data.trips.filter((t) => t.odoEnd != null).map((t) => ({ km: t.odoEnd as number, date: t.endDate ?? t.startDate })),
+    ...data.fuel.filter((f) => f.odometer != null).map((f) => ({ km: f.odometer as number, date: f.date })),
+  ].sort((a, b) => b.km - a.km)
+  const odo = readings[0]
+  const thisYear = valid.filter((t) => t.startDate.startsWith(year))
+  const kmYear = thisYear.reduce((a, t) => a + t.km, 0)
+  const nightsYear = thisYear.reduce((a, t) => a + tripNights(t), 0)
+  const names = (ids: string[]) => ids.map((id) => (id === me?.id ? 'dir' : data.persons.find((p) => p.id === id)?.name ?? '?')).join(', ')
+
+  return (
+    <Card className="overflow-hidden bg-gradient-to-br from-surface to-accent-50/70">
+      <div className="flex items-center gap-4 sm:gap-6">
+        <BusMark className="w-24 shrink-0 sm:w-32" />
+        <dl className="grid min-w-0 flex-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
+          <div className="min-w-0">
+            <dt className="text-xs text-slate-500">Zuletzt unterwegs</dt>
+            <dd className="truncate font-semibold text-slate-900">
+              {last ? <>{formatDate(last.endDate ?? last.startDate)} · mit {names(last.personIds)}</> : '–'}
+            </dd>
+            {last && (last.to || last.from) && <dd className="truncate text-xs text-slate-500">{[last.from, ...(last.stops ?? []), last.to].filter(Boolean).join(' → ')}</dd>}
+          </div>
+          <div>
+            <dt className="text-xs text-slate-500">Kilometerstand</dt>
+            <dd className="tabular font-semibold text-slate-900">{odo ? formatKm(odo.km) : '–'}</dd>
+            {odo && <dd className="text-xs text-slate-500">Stand {formatDate(odo.date)}</dd>}
+          </div>
+          <div>
+            <dt className="text-xs text-slate-500">{year}</dt>
+            <dd className="tabular font-semibold text-slate-900">{formatKm(kmYear)}</dd>
+            <dd className="text-xs text-slate-500">{thisYear.length} Fahrt(en) · {nightsYear} Nächte</dd>
+          </div>
+        </dl>
+      </div>
+    </Card>
   )
 }

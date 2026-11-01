@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { PartyPopper, Share2 } from 'lucide-react'
+import { Share2 } from 'lucide-react'
 import { useAppData } from '../../lib/store/context'
 import { dueCosts, personName, tripPlaces, validTrips, yearReview } from '../../lib/domain/stats'
 import { flag, placeKey, useGeocode } from '../../lib/geo'
@@ -25,7 +25,7 @@ export function ReviewTab({ year, today }: { year: number; today: string }) {
   }, [names, places])
 
   if (r.trips === 0) {
-    return <Card><EmptyState icon={<PartyPopper className="h-6 w-6" />} title={`Noch keine Fahrten in ${year}`}>Sobald Fahrten eingetragen sind, entsteht hier der Rückblick.</EmptyState></Card>
+    return <Card><EmptyState illustration title={`Noch keine Fahrten in ${year}`}>Sobald Fahrten eingetragen sind, entsteht hier der Rückblick.</EmptyState></Card>
   }
 
   const top = r.topPerson ? personName(data.persons, r.topPerson.personId) : undefined
