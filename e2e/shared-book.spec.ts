@@ -7,6 +7,9 @@ const EVE = 'eve@example.com'
 
 test.describe.configure({ mode: 'serial' })
 
+/** Personen-Chip im Formular; die eigene Person trägt den Zusatz „(du)“. */
+const chip = (scope: Locator, name: string) => scope.getByRole('button', { name: new RegExp(`^${name} ?(\\(du\\))?$`) })
+
 /** Tippt wie ein Mensch (einzelne Tastenanschläge) – auch während Echtzeit-Updates eintreffen. */
 async function type(loc: Locator, value: string) {
   await loc.click()
@@ -27,7 +30,10 @@ async function addTrip(page: Page, o: { date: string; odoStart?: string; odoEnd?
   if (o.odoStart) await type(dlg.getByLabel(/Kilometerstand Beginn/), o.odoStart)
   if (o.odoEnd) await type(dlg.getByLabel(/Kilometerstand Ende/), o.odoEnd)
   if (o.km) await type(dlg.getByLabel('Gefahrene Kilometer'), o.km)
-  for (const p of o.persons) await dlg.getByRole('button', { name: p, exact: true }).click()
+  // Die eigene Person ist vorausgewählt – Auswahl erst leeren, dann gezielt wählen
+  const chips = dlg.getByRole('group', { name: 'Beteiligte Personen' })
+  for (const on of await chips.locator('button[aria-pressed="true"]').all()) await on.click()
+  for (const p of o.persons) await chip(dlg, p).click()
   // Werte müssen auch nach eintreffenden Echtzeit-Updates erhalten bleiben
   await page.waitForTimeout(300)
   await expect(dlg.getByLabel('Datum', { exact: true })).toHaveValue(o.date)
@@ -97,7 +103,7 @@ test('gemeinsames Fahrtenbuch: Einrichtung, Backup, Ausgleich, Abschluss, Mitgli
   const dlg = anna.getByRole('dialog')
   await expect(dlg.getByLabel(/Kilometerstand Beginn/)).toHaveValue('520')
   await expect(dlg.getByLabel(/Kilometerstand Ende/)).toHaveValue('600')
-  await dlg.getByRole('button', { name: 'Ben', exact: true }).click()
+  await chip(dlg, 'Ben').click()
   await dlg.getByRole('button', { name: 'Fahrt speichern' }).click()
   await expect(anna.getByText(/Lücke von/)).toHaveCount(0)
 
@@ -135,6 +141,12 @@ test('gemeinsames Fahrtenbuch: Einrichtung, Backup, Ausgleich, Abschluss, Mitgli
   await expect(ben.getByRole('heading', { name: 'Übersicht' })).toBeVisible()
   await ben.goto('/#/fahrten')
   await expect(ben.getByRole('row').filter({ hasText: 'Gardasee' })).toHaveCount(1)
+
+  // --- Bens Konto wurde mit der vorhandenen Person „Ben“ verknüpft (keine Doppelanlage) und ist vorausgewählt
+  await ben.getByRole('button', { name: 'Neue Fahrt' }).first().click()
+  await expect(ben.getByRole('dialog').getByRole('button', { name: /^Ben ?\(du\)$/ })).toHaveAttribute('aria-pressed', 'true')
+  await expect(ben.getByRole('dialog').getByRole('button', { name: /^Ben/ })).toHaveCount(1)
+  await ben.getByRole('dialog').getByRole('button', { name: 'Abbrechen' }).click()
 
   // --- Echtzeit: Ben erfasst eine Fahrt, während Anna gerade tippt.
   // Annas Eingabe und Fokus bleiben erhalten; die neue Fahrt erscheint ohne Neuladen.

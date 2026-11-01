@@ -3,7 +3,8 @@ import { useState } from 'react'
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth'
 import { ChevronRight, DatabaseBackup, KeyRound, LogOut, Monitor, Moon, Plus, Smartphone, Sun, Trash2, UserCog, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { useSession } from '../lib/store/context'
+import { useAppData, useSession } from '../lib/store/context'
+import { findMemberPerson, setPersonActive } from '../lib/store/repo'
 import { getFirebase } from '../lib/firebase'
 import { authErrorMessage, isValidEmail, normalizeEmail, updateMembers } from '../lib/book'
 import { getThemePref, setThemePref, type ThemePref } from '../lib/theme'
@@ -13,6 +14,7 @@ import { useFeedback } from '../components/feedback-context'
 export function SettingsPage() {
   const { userEmail, memberEmails, bookId, signOut } = useSession()
   const { toast, confirm } = useFeedback()
+  const data = useAppData()
   const { auth, db } = getFirebase()
   const [newMember, setNewMember] = useState('')
   const [memberError, setMemberError] = useState<string>()
@@ -43,11 +45,14 @@ export function SettingsPage() {
       confirmLabel: 'Entfernen',
       message: self
         ? 'Du verlierst sofort den Zugriff auf das gemeinsame Fahrtenbuch. Nur ein anderes Mitglied kann dich wieder freischalten.'
-        : 'Die Person verliert sofort den Zugriff auf das gemeinsame Fahrtenbuch. Ihre bisherigen Fahrten bleiben erhalten.',
+        : 'Die Person verliert sofort den Zugriff auf das gemeinsame Fahrtenbuch. Ihre bisherigen Fahrten bleiben erhalten, sie wird aber bei neuen Fahrten nicht mehr angeboten.',
     })
     if (!ok) return
     try {
       await updateMembers(db, bookId, memberEmails.filter((m) => m !== email))
+      // Fahrten und Abrechnungen behalten die Person; bei neuen Einträgen wird sie nicht mehr angeboten.
+      const person = findMemberPerson(data.persons, email)
+      if (person?.active && !self) await setPersonActive(person.id, false)
       toast(`${email} wurde entfernt.`)
     } catch (err) {
       toast(authErrorMessage(err), 'error')

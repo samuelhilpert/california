@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { MemoryStore } from './memoryStore'
-import { addPerson, deleteTrip, restoreRecord, saveExpense, savePayment, saveSettlementSnapshot, saveTrip, ValidationError } from './repo'
+import { addPerson, deleteTrip, findMemberPerson, linkMember, restoreRecord, setPersonActive, saveExpense, savePayment, saveSettlementSnapshot, saveTrip, ValidationError } from './repo'
 import { createBackup, parseBackup, planMerge, restoreBackup, BACKUP_APP_ID } from '../io/backup'
 import { buildSettlement } from '../domain/settlement'
 
@@ -82,5 +82,39 @@ describe('Backup zusammenführen', () => {
     expect(plan.removed).toBe(1)
     expect(db.getData().persons).toHaveLength(0)
     expect(db.getData().categories.length).toBeGreaterThan(0)
+  })
+})
+
+describe('Konto ↔ Person', () => {
+  it('übernimmt eine gleichnamige Person ohne Konto (z. B. aus einem Backup)', async () => {
+    const db = new MemoryStore()
+    const ben = await addPerson('Ben', db)
+    const p = await linkMember('Ben@Example.com', 'ben', db)
+    expect(p.id).toBe(ben.id)
+    expect(p.email).toBe('ben@example.com')
+    expect(db.getData().persons).toHaveLength(1)
+    expect(findMemberPerson(db.getData().persons, 'BEN@example.com')?.id).toBe(ben.id)
+  })
+  it('legt sonst eine neue Person an – auf zwei Geräten mit derselben ID', async () => {
+    const a = new MemoryStore()
+    const b = new MemoryStore()
+    const p1 = await linkMember('anna@example.com', 'Anna', a)
+    const p2 = await linkMember('anna@example.com', 'Anna', b)
+    expect(p1.id).toBe(p2.id)
+    expect(p1).toMatchObject({ name: 'Anna', email: 'anna@example.com', active: true })
+  })
+  it('ist wiederholbar und aktiviert eine deaktivierte Person wieder', async () => {
+    const db = new MemoryStore()
+    const p = await linkMember('anna@example.com', 'Anna', db)
+    await setPersonActive(p.id, false, db)
+    const again = await linkMember('anna@example.com', 'egal', db)
+    expect(again).toMatchObject({ id: p.id, name: 'Anna', active: true })
+    expect(db.getData().persons).toHaveLength(1)
+  })
+  it('übernimmt keine Person, die schon zu einem anderen Konto gehört', async () => {
+    const db = new MemoryStore()
+    await linkMember('ben@example.com', 'Ben', db)
+    await expect(linkMember('ben2@example.com', 'Ben', db)).rejects.toThrow(/anderen Konto/)
+    await expect(linkMember('x@example.com', '  ', db)).rejects.toBeInstanceOf(ValidationError)
   })
 })

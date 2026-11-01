@@ -7,6 +7,8 @@ export interface Person {
   id: string
   name: string
   active: boolean
+  /** E-Mail des verknüpften Kontos (Mitglied). Leer = Person ohne Konto, z. B. Gast. */
+  email?: string
   createdAt: string
   updatedAt?: string
 }

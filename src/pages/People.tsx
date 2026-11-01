@@ -88,7 +88,7 @@ export function PeoplePage() {
                 {p.name.slice(0, 2).toUpperCase()}
               </div>
               <div className="min-w-0">
-                <div className="flex items-center gap-2 font-medium text-slate-900">{p.name}{!p.active && <Badge>deaktiviert</Badge>}</div>
+                <div className="flex items-center gap-2 font-medium text-slate-900">{p.name}{p.email ? <Badge tone="brand">Mitglied</Badge> : <Badge>ohne Konto</Badge>}{!p.active && <Badge>deaktiviert</Badge>}</div>
                 <div className="text-xs text-slate-500">
                   {u.trips} Fahrt(en){u.expenses > 0 && ` · ${u.expenses} Ausgabe(n)`}{u.payments > 0 && ` · ${u.payments} Zahlung(en)`}
                   {r && ` · ${formatKm(r.km)} anteilig · ${formatEuro(r.totalCents)} gesamt`}

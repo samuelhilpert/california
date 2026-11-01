@@ -1,6 +1,7 @@
 import { createContext, useContext, useSyncExternalStore } from 'react'
 import type { AppData, DataStore, SyncStatus } from './types'
-import type { Setting } from '../domain/types'
+import type { Person, Setting } from '../domain/types'
+import { findMemberPerson } from './repo'
 
 export interface Session {
   store: DataStore
@@ -22,6 +23,12 @@ export function useSession(): Session {
 export function useAppData(): AppData {
   const { store } = useSession()
   return useSyncExternalStore((l) => store.subscribe(l), () => store.getData())
+}
+
+/** Die Person des angemeldeten Kontos (falls verknüpft). */
+export function useMyPerson(): Person | undefined {
+  const { userEmail } = useSession()
+  return findMemberPerson(useAppData().persons, userEmail)
 }
 
 export function useSyncStatus(): SyncStatus {

@@ -71,6 +71,40 @@ function getPerson(store: DataStore, id: string): Person {
   return p
 }
 
+/** Person zu einem Konto (E-Mail). */
+export function findMemberPerson(persons: Person[], email: string): Person | undefined {
+  const e = email.trim().toLowerCase()
+  return e ? persons.find((p) => p.email?.toLowerCase() === e) : undefined
+}
+
+/**
+ * Verknüpft ein Konto mit einer Person: vorhandene Verknüpfung → gleichnamige Person ohne Konto
+ * (z. B. aus einem Backup) → sonst neu anlegen. Die ID neuer Personen hängt nur an der E-Mail,
+ * damit zwei Geräte gleichzeitig keine doppelte Person anlegen.
+ */
+export async function linkMember(email: string, name: string, store: DataStore = activeStore()): Promise<Person> {
+  const e = email.trim().toLowerCase()
+  const persons = store.getData().persons
+  const linked = findMemberPerson(persons, e)
+  if (linked) {
+    if (linked.active) return linked
+    const p = { ...linked, active: true, updatedAt: nowStamp() }
+    await store.commit([{ type: 'put', table: 'persons', value: p }])
+    return p
+  }
+  const n = normalizeName(name)
+  if (!n) throw new ValidationError({ name: 'Bitte deinen Namen angeben.' })
+  if (n.length > 60) throw new ValidationError({ name: 'Der Name ist zu lang (max. 60 Zeichen).' })
+  const same = persons.find((p) => p.name.toLowerCase() === n.toLowerCase())
+  if (same?.email) throw new ValidationError({ name: `„${n}“ gehört schon zu einem anderen Konto. Bitte einen anderen Namen wählen.` })
+  const now = nowStamp()
+  const p: Person = same
+    ? { ...same, email: e, active: true, updatedAt: now }
+    : { id: `m_${e.replace(/[^a-z0-9]/g, '_')}`, name: n, email: e, active: true, createdAt: now, updatedAt: now }
+  await store.commit([{ type: 'put', table: 'persons', value: p }])
+  return p
+}
+
 export async function renamePerson(id: string, name: string, store: DataStore = activeStore()): Promise<void> {
   const n = normalizeName(name)
   if (!n) throw new ValidationError({ name: 'Bitte einen Namen angeben.' })

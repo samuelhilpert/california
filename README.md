@@ -44,9 +44,8 @@ npx firebase deploy --only hosting,firestore:rules,firestore:indexes
 
 ### 4. Fahrtenbuch einrichten und Mitglieder einladen
 1. App öffnen → **Konto erstellen** → E-Mail bestätigen → **Fahrtenbuch einrichten**. Du bist das erste Mitglied.
-2. **Einstellungen → Personen** → alle anlegen, die das Auto nutzen.
-3. **Einstellungen → Mitglieder** → E-Mail-Adressen der anderen Mitglieder **freischalten**.
-4. Diese öffnen den Link, wählen **Konto erstellen** mit genau dieser Adresse und bestätigen die E-Mail. Danach sehen alle denselben Datenstand.
+2. **Einstellungen → Mitglieder** → E-Mail-Adressen der anderen Mitglieder **freischalten**.
+3. Diese öffnen den Link, wählen **Konto erstellen** mit Namen und genau dieser Adresse und bestätigen die E-Mail. Sie erscheinen dann automatisch als Person im Fahrtenbuch. Weitere Personen ohne Konto (z. B. Gäste) legt man direkt beim Eintragen einer Fahrt an. Danach sehen alle denselben Datenstand.
 
 **Auf dem Handy installieren:** iPhone: Safari → Teilen → *Zum Home-Bildschirm*. Nur so bleiben die Offline-Daten auf iOS dauerhaft erhalten. Android: Chrome → Menü → *App installieren*.
 

@@ -11,6 +11,7 @@ import { formatDate, formatInt, formatKm, numberToInput } from '../lib/format'
 import { Button, Disclosure, Field, Input, Modal, Notice, Textarea } from './ui'
 import { PersonMultiSelect } from './PersonMultiSelect'
 import { errorMessage, useFeedback } from './feedback-context'
+import { useMyPerson } from '../lib/store/context'
 
 interface Props {
   open: boolean
@@ -33,6 +34,7 @@ export function TripFormModal(props: Props) {
 function TripForm({ onClose, trip, persons, trips, settlements = [], prefill }: Props) {
   const { toast, confirm } = useFeedback()
   const init = trip ?? prefill
+  const me = useMyPerson()
   const lastOdo = useMemo(() => {
     const withOdo = trips.filter((t) => t.odoEnd != null && t.id !== trip?.id)
     withOdo.sort((a, b) => (a.startDate === b.startDate ? (a.odoEnd! - b.odoEnd!) : a.startDate < b.startDate ? -1 : 1))
@@ -50,7 +52,8 @@ function TripForm({ onClose, trip, persons, trips, settlements = [], prefill }: 
   const [kmInput, setKmInput] = useState(numberToInput(init?.km))
   // Zwei Wege: Kilometerstände (Standard) oder nur die gefahrenen Kilometer.
   const [kmOnly, setKmOnly] = useState(init != null && init.km != null && init.odoStart == null && init.odoEnd == null)
-  const [personIds, setPersonIds] = useState<string[]>(init?.personIds ?? [])
+  // Neue Fahrt: Wer sie einträgt, ist meist auch gefahren.
+  const [personIds, setPersonIds] = useState<string[]>(init?.personIds ?? (!init && me ? [me.id] : []))
   const [note, setNote] = useState(init?.note ?? '')
   const [moreOpen, setMoreOpen] = useState(!!(init?.endDate || init?.from || init?.to || init?.note))
   const [errors, setErrors] = useState<FieldErrors>({})

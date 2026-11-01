@@ -11,6 +11,7 @@ import { centsToInput, formatDate, formatEuro } from '../lib/format'
 import { Button, Disclosure, Field, Input, Modal, Select, Textarea } from './ui'
 import { PersonMultiSelect } from './PersonMultiSelect'
 import { errorMessage, useFeedback } from './feedback-context'
+import { useMyPerson } from '../lib/store/context'
 
 interface Props {
   open: boolean
@@ -30,6 +31,7 @@ type EndMode = 'open' | 'count' | 'until'
 
 function ExpenseForm({ onClose, expense, categories, persons }: Props) {
   const { toast } = useFeedback()
+  const me = useMyPerson()
   const [title, setTitle] = useState(expense?.title ?? '')
   const [categoryId, setCategoryId] = useState(expense?.categoryId ?? categories[0]?.id ?? '')
   const [amount, setAmount] = useState(centsToInput(expense?.amountCents))
@@ -41,7 +43,8 @@ function ExpenseForm({ onClose, expense, categories, persons }: Props) {
   const [allocation, setAllocation] = useState<Allocation>(expense?.allocation ?? 'perKm')
   const [directIds, setDirectIds] = useState<string[]>(expense?.directPersonIds ?? [])
   const [note, setNote] = useState(expense?.note ?? '')
-  const [paidBy, setPaidBy] = useState(expense?.paidBy ?? '')
+  // Neue Ausgabe: Wer sie einträgt, hat sie meist auch bezahlt.
+  const [paidBy, setPaidBy] = useState(expense ? (expense.paidBy ?? '') : (me?.id ?? ''))
   const [spread, setSpread] = useState(Boolean(expense?.spreadMonths && expense.spreadMonths > 1))
   const [spreadMonths, setSpreadMonths] = useState(String(expense?.spreadMonths ?? 12))
   const [errors, setErrors] = useState<FieldErrors>({})

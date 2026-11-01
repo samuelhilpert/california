@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight, Car, CheckCircle2, Coins, DatabaseBackup, Gauge, Plus, Receipt, Route, Users } from 'lucide-react'
-import { useAppData, useSetting } from '../lib/store/context'
+import { useAppData, useMyPerson, useSetting } from '../lib/store/context'
 import { buildSettlement, personRows } from '../lib/domain/settlement'
 import { todayIso } from '../lib/domain/dates'
 import { formatDate, formatEuro, formatKm, formatPricePerKm, formatStamp, formatInt, formatPercent } from '../lib/format'
@@ -31,6 +31,7 @@ function writeDetailsOpen(open: boolean) {
 
 export function DashboardPage() {
   const data = useAppData()
+  const me = useMyPerson()
   const lastBackup = useSetting<string>('lastBackupAt')
   const [tripOpen, setTripOpen] = useState(false)
   const [expenseOpen, setExpenseOpen] = useState(false)
@@ -52,12 +53,14 @@ export function DashboardPage() {
   const lastChange = [...data.trips, ...data.expenses, ...data.payments].reduce((m, x) => (x.updatedAt > m ? x.updatedAt : m), '')
   const backupAgeDays = lastBackup ? (nowMs - new Date(lastBackup).getTime()) / 86400000 : Infinity
   const backupDue = !lastBackup || (backupAgeDays > 30 && lastChange > lastBackup)
-  const openTransfers = s.balance.transfers
+  // Überweisungen, die mich betreffen, zuerst
+  const openTransfers = [...s.balance.transfers].sort((a, b) => Number(b.fromPersonId === me?.id || b.toPersonId === me?.id) - Number(a.fromPersonId === me?.id || a.toPersonId === me?.id))
 
   const rows = personRows(s, data.persons)
   const catName = new Map(data.categories.map((c) => [c.id, c]))
   const recent = [...data.trips].sort((a, b) => (a.startDate === b.startDate ? b.createdAt.localeCompare(a.createdAt) : a.startDate < b.startDate ? 1 : -1)).slice(0, 5)
   const pName = new Map(data.persons.map((p) => [p.id, p.name]))
+  const who = (id: string) => (id === me?.id ? 'Du' : pName.get(id) ?? '?')
   const dueCents = s.costs.filter((c) => c.date <= today).reduce((a, c) => a + c.amountCents, 0)
   const activePersons = data.persons.filter((p) => p.active).length
   const isEmpty = data.trips.length === 0 && data.expenses.length === 0
@@ -121,7 +124,7 @@ export function DashboardPage() {
               <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {openTransfers.map((t) => (
                   <li key={`${t.fromPersonId}-${t.toPersonId}`} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
-                    <span><strong>{pName.get(t.fromPersonId) ?? '?'}</strong> → <strong>{pName.get(t.toPersonId) ?? '?'}</strong></span>
+                    <span><strong>{who(t.fromPersonId)}</strong> → <strong>{who(t.toPersonId)}</strong></span>
                     <span className="tabular font-semibold">{formatEuro(t.amountCents)}</span>
                   </li>
                 ))}

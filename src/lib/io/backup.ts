@@ -9,7 +9,7 @@ export const BACKUP_SCHEMA_VERSION = 2
 const isoDate = z.string().refine(isIsoDate, 'Ungültiges Datum')
 const stamp = z.string()
 
-const personSchema = z.object({ id: z.string().min(1), name: z.string().min(1), active: z.boolean(), createdAt: stamp, updatedAt: stamp.optional() })
+const personSchema = z.object({ id: z.string().min(1), name: z.string().min(1), active: z.boolean(), email: z.string().optional(), createdAt: stamp, updatedAt: stamp.optional() })
 const tripSchema = z.object({
   id: z.string().min(1),
   startDate: isoDate,

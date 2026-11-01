@@ -3,6 +3,7 @@ import { Check, Plus, UserPlus } from 'lucide-react'
 import { useState } from 'react'
 import type { Person } from '../lib/domain/types'
 import { addPerson } from '../lib/store/repo'
+import { useMyPerson } from '../lib/store/context'
 import { Button, Input } from './ui'
 import { errorMessage, useFeedback } from './feedback-context'
 
@@ -17,7 +18,9 @@ export function PersonMultiSelect({ persons, value, onChange, invalid }: { perso
   const [name, setName] = useState('')
   const [error, setError] = useState<string>()
 
-  const visible = persons.filter((p) => p.active || value.includes(p.id))
+  const me = useMyPerson()
+  // Mitglieder (mit Konto) zuerst, danach weitere Personen wie Gäste
+  const visible = persons.filter((p) => p.active || value.includes(p.id)).sort((a, b) => Number(!a.email) - Number(!b.email))
   const unknownIds = value.filter((id) => !persons.some((p) => p.id === id))
   const toggle = (id: string) => onChange(value.includes(id) ? value.filter((x) => x !== id) : [...value, id])
   const allActive = persons.filter((p) => p.active).map((p) => p.id)
@@ -54,6 +57,7 @@ export function PersonMultiSelect({ persons, value, onChange, invalid }: { perso
             >
               {on ? <Check className="h-3.5 w-3.5" /> : <span className="h-3.5 w-3.5 rounded-full border border-slate-300" />}
               {p.name}
+              {p.id === me?.id && <span className="text-xs font-normal text-slate-500">(du)</span>}
               {!p.active && <span className="text-xs font-normal text-slate-500">(inaktiv)</span>}
             </button>
           )

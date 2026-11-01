@@ -6,18 +6,20 @@ import {
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
+  updateProfile,
   type User,
 } from 'firebase/auth'
-import { LogOut, MailCheck, RefreshCw, ShieldAlert, WifiOff } from 'lucide-react'
+import { LogOut, MailCheck, RefreshCw, ShieldAlert, UserRound, WifiOff } from 'lucide-react'
 import { BOOK_ID, getFirebase, isConfigured } from '../lib/firebase'
 import { authErrorMessage, createBook, isValidEmail, subscribeBook, type BookState } from '../lib/book'
 import { FirestoreStore } from '../lib/store/firestoreStore'
 import { setActiveStore } from '../lib/store/active'
-import { SessionContext, type Session } from '../lib/store/context'
+import { SessionContext, useAppData, useMyPerson, type Session } from '../lib/store/context'
+import { linkMember } from '../lib/store/repo'
 import { Button, Field, Input, Notice } from './ui'
 import { Logo } from './Logo'
 import { Loading } from './Loading'
-import { useFeedback } from './feedback-context'
+import { errorMessage, useFeedback } from './feedback-context'
 
 function Shell({ children }: { children: ReactNode }) {
   return (
@@ -100,7 +102,7 @@ function Gate({ children }: { children: ReactNode }) {
     memberEmails: book.book.memberEmails,
     signOut: () => signOut(auth),
   }
-  return <SessionContext.Provider value={session}><StoreReady store={store}>{children}</StoreReady></SessionContext.Provider>
+  return <SessionContext.Provider value={session}><StoreReady store={store}><MemberLink>{children}</MemberLink></StoreReady></SessionContext.Provider>
 }
 
 function StoreReady({ store, children }: { store: FirestoreStore; children: ReactNode }) {
@@ -116,11 +118,82 @@ function StoreReady({ store, children }: { store: FirestoreStore; children: Reac
   return <>{children}</>
 }
 
+/**
+ * Sorgt dafür, dass das angemeldete Konto eine Person im Fahrtenbuch hat.
+ * Mit Namen aus der Registrierung geschieht das automatisch, sonst wird einmal nachgefragt.
+ */
+function MemberLink({ children }: { children: ReactNode }) {
+  const { auth } = getFirebase()
+  const me = useMyPerson()
+  const linked = me?.active === true
+  const displayName = auth.currentUser?.displayName?.trim() ?? ''
+  const email = auth.currentUser?.email ?? ''
+  const [autoError, setAutoError] = useState<string>()
+
+  useEffect(() => {
+    if (linked || !displayName || !email) return
+    linkMember(email, displayName).catch((e) => setAutoError(errorMessage(e)))
+  }, [linked, displayName, email])
+
+  if (linked) return <>{children}</>
+  if (displayName && !autoError) return <Shell><Loading /></Shell>
+  return <Shell><AskName email={email} hint={autoError} /></Shell>
+}
+
+function AskName({ email, hint }: { email: string; hint?: string }) {
+  const { auth } = getFirebase()
+  const data = useAppData()
+  const [name, setName] = useState(auth.currentUser?.displayName ?? '')
+  const [error, setError] = useState(hint)
+  const [busy, setBusy] = useState(false)
+  // Personen ohne Konto (z. B. aus einem Backup) zum schnellen Auswählen
+  const free = data.persons.filter((p) => !p.email && p.active)
+
+  const submit = async () => {
+    setBusy(true)
+    setError(undefined)
+    try {
+      const p = await linkMember(email, name)
+      if (auth.currentUser && auth.currentUser.displayName !== p.name) await updateProfile(auth.currentUser, { displayName: p.name }).catch(() => undefined)
+    } catch (e) {
+      setError(errorMessage(e))
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); void submit() }}>
+      <UserRound className="h-10 w-10 text-brand-700" />
+      <div>
+        <h1 className="text-xl font-semibold text-slate-900">Wie heißt du?</h1>
+        <p className="mt-1 text-sm text-slate-600">Unter diesem Namen erscheinst du im Fahrtenbuch. Das fragen wir nur einmal.</p>
+      </div>
+      {error && <Notice level="error">{error}</Notice>}
+      {free.length > 0 && (
+        <div>
+          <p className="mb-2 text-sm text-slate-600">Schon im Fahrtenbuch? Dann wähle dich aus:</p>
+          <div className="flex flex-wrap gap-2">
+            {free.map((p) => (
+              <Button key={p.id} size="sm" variant={name.trim().toLowerCase() === p.name.toLowerCase() ? 'primary' : 'secondary'} onClick={() => setName(p.name)}>{p.name}</Button>
+            ))}
+          </div>
+        </div>
+      )}
+      <Field label="Dein Name" htmlFor="me-name">
+        <Input id="me-name" autoComplete="given-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} required />
+      </Field>
+      <Button type="submit" variant="primary" className="w-full" disabled={busy || !name.trim()}>Weiter</Button>
+      <button type="button" className="text-sm text-slate-500 hover:underline" onClick={() => void signOut(auth)}>Abmelden</button>
+    </form>
+  )
+}
+
 type Mode = 'login' | 'register' | 'reset'
 
 function SignIn() {
   const { auth } = getFirebase()
   const [mode, setMode] = useState<Mode>('login')
+  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [password2, setPassword2] = useState('')
@@ -131,6 +204,7 @@ function SignIn() {
   const submit = async () => {
     setError(undefined)
     setInfo(undefined)
+    if (mode === 'register' && !name.trim()) return setError('Bitte deinen Namen angeben.')
     if (!isValidEmail(email)) return setError('Bitte eine gültige E-Mail-Adresse eingeben.')
     if (mode !== 'reset' && password.length < 8) return setError('Das Passwort muss mindestens 8 Zeichen lang sein.')
     if (mode === 'register' && password !== password2) return setError('Die Passwörter stimmen nicht überein.')
@@ -140,6 +214,7 @@ function SignIn() {
       else if (mode === 'register') {
         const cred = await createUserWithEmailAndPassword(auth, email.trim(), password)
         await sendEmailVerification(cred.user)
+        await updateProfile(cred.user, { displayName: name.trim() })
       } else {
         await sendPasswordResetEmail(auth, email.trim())
         setInfo('Falls ein Konto mit dieser Adresse existiert, wurde eine E-Mail zum Zurücksetzen des Passworts gesendet.')
@@ -162,6 +237,11 @@ function SignIn() {
       </div>
       {error && <Notice level="error">{error}</Notice>}
       {info && <Notice level="success">{info}</Notice>}
+      {mode === 'register' && (
+        <Field label="Name" htmlFor="auth-name" hint="So erscheinst du im Fahrtenbuch">
+          <Input id="auth-name" autoComplete="given-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} required />
+        </Field>
+      )}
       <Field label="E-Mail" htmlFor="auth-email">
         <Input id="auth-email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
       </Field>

@@ -15,17 +15,24 @@ export async function resetEmulators() {
 
 /** Klickt den Bestätigungslink aus der (simulierten) E-Mail des Auth-Emulators. */
 export async function verifyEmailViaEmulator(email: string) {
-  const res = await fetch(`${AUTH}/emulator/v1/projects/${PROJECT}/oobCodes`)
-  const { oobCodes } = (await res.json()) as { oobCodes: { email: string; requestType: string; oobLink: string }[] }
-  const code = oobCodes.filter((c) => c.email === email && c.requestType === 'VERIFY_EMAIL').at(-1)
+  // Die App versendet die Mail kurz nach dem Anlegen des Kontos – daher einige Sekunden abwarten.
+  let code: { oobLink: string } | undefined
+  for (let i = 0; i < 25 && !code; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, 200))
+    const res = await fetch(`${AUTH}/emulator/v1/projects/${PROJECT}/oobCodes`)
+    const { oobCodes } = (await res.json()) as { oobCodes: { email: string; requestType: string; oobLink: string }[] }
+    code = oobCodes.filter((c) => c.email === email && c.requestType === 'VERIFY_EMAIL').at(-1)
+  }
   if (!code) throw new Error(`Keine Bestätigungs-E-Mail für ${email}`)
   const r = await fetch(code.oobLink)
   if (!r.ok) throw new Error(`Bestätigung fehlgeschlagen: ${r.status}`)
 }
 
-export async function register(page: Page, email: string) {
+/** Registriert ein Konto. Der Name wird aus der Adresse abgeleitet (anna@… → Anna). */
+export async function register(page: Page, email: string, name = email[0].toUpperCase() + email.slice(1, email.indexOf('@'))) {
   await page.goto('/')
   await page.getByRole('button', { name: 'Konto erstellen' }).click()
+  await page.getByLabel('Name', { exact: true }).fill(name)
   await page.getByLabel('E-Mail').fill(email)
   await page.getByLabel('Passwort', { exact: true }).fill(PASSWORD)
   await page.getByLabel('Passwort wiederholen').fill(PASSWORD)
