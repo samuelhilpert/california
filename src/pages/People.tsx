@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Pencil, Plus, Trash2, UserCheck, UserX, Users } from 'lucide-react'
+import { ChevronLeft, Pencil, Plus, Trash2, UserCheck, UserX, Users } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { useAppData } from '../lib/store/context'
 import { addPerson, deletePerson, renamePerson, restoreRecord, setPersonActive } from '../lib/store/repo'
 import { buildSettlement } from '../lib/domain/settlement'
@@ -109,6 +110,7 @@ export function PeoplePage() {
 
   return (
     <>
+      <Link to="/einstellungen" className="mb-3 inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:underline"><ChevronLeft className="h-4 w-4" />Einstellungen</Link>
       <PageHeader title="Personen" description="Fahrer und Mitfahrer. Jede Person hat eine feste ID – Umbenennen oder Deaktivieren verändert keine historischen Daten." />
 
       <Card className="mb-6">
@@ -123,7 +125,7 @@ export function PeoplePage() {
 
       <Card padded={false} className="mb-6">
         <div className="border-b border-slate-100 px-5 py-4 text-sm font-semibold text-slate-900">Aktiv ({active.length})</div>
-        {active.length === 0 ? <EmptyState icon={<Users className="h-6 w-6" />} title="Keine aktiven Personen">Füge Personen hinzu oder importiere die Excel-Datei.</EmptyState> : renderList(active)}
+        {active.length === 0 ? <EmptyState icon={<Users className="h-6 w-6" />} title="Keine aktiven Personen">Füge oben die Personen hinzu, die das Auto nutzen.</EmptyState> : renderList(active)}
       </Card>
 
       {inactive.length > 0 && (

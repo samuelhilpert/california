@@ -1,25 +1,50 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, Car, Coins, FileSpreadsheet, Gauge, Plus, Receipt, Route, Users } from 'lucide-react'
+import { ArrowRight, Car, CheckCircle2, Coins, DatabaseBackup, Gauge, Plus, Receipt, Route, Users } from 'lucide-react'
 import { useAppData, useSetting } from '../lib/store/context'
 import { buildSettlement, personRows } from '../lib/domain/settlement'
 import { todayIso } from '../lib/domain/dates'
 import { formatDate, formatEuro, formatKm, formatPricePerKm, formatStamp, formatInt, formatPercent } from '../lib/format'
-import { Badge, Bar, Button, Card, CardTitle, EmptyState, Notice, PageHeader, Stat } from '../components/ui'
+import { Badge, Bar, Button, Card, CardTitle, Disclosure, EmptyState, Notice, PageHeader, Stat } from '../components/ui'
 import { TripFormModal } from '../components/TripForm'
 import { ExpenseFormModal } from '../components/ExpenseForm'
 import { Loading } from '../components/Loading'
+
+const DETAILS_KEY = 'dashboard.detailsOpen'
+
+/** Ob die Details aufgeklappt sind, merkt sich jedes Gerät für sich. */
+function readDetailsOpen(): boolean {
+  try {
+    return localStorage.getItem(DETAILS_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function writeDetailsOpen(open: boolean) {
+  try {
+    localStorage.setItem(DETAILS_KEY, open ? '1' : '0')
+  } catch {
+    // z. B. privater Modus – dann eben nicht merken
+  }
+}
 
 export function DashboardPage() {
   const data = useAppData()
   const lastBackup = useSetting<string>('lastBackupAt')
   const [tripOpen, setTripOpen] = useState(false)
   const [expenseOpen, setExpenseOpen] = useState(false)
+  const [detailsOpen, setDetailsOpen] = useState(readDetailsOpen)
   const [nowMs] = useState(() => Date.now())
   const today = todayIso()
 
   const s = useMemo(() => (data ? buildSettlement(data, { period: { kind: 'all' }, today }) : undefined), [data, today])
   if (!data || !s) return <Loading />
+
+  const toggleDetails = (open: boolean) => {
+    setDetailsOpen(open)
+    writeDetailsOpen(open)
+  }
 
   const allIssues = s.odometerIssues
   const gapKm = allIssues.filter((i) => i.type === 'gap').reduce((a, i) => a + i.km, 0)
@@ -38,16 +63,9 @@ export function DashboardPage() {
   const isEmpty = data.trips.length === 0 && data.expenses.length === 0
   const maxShare = Math.max(1, ...rows.map((r) => r.totalCents))
 
-  const actions = (
-    <>
-      <Button icon={<Receipt className="h-4 w-4" />} onClick={() => setExpenseOpen(true)}>Neue Ausgabe</Button>
-      <Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => setTripOpen(true)}>Neue Fahrt</Button>
-    </>
-  )
-
   return (
     <>
-      <PageHeader title="Dashboard" description="Alle Kennzahlen über den gesamten erfassten Zeitraum." actions={actions} />
+      <PageHeader title="Übersicht" />
 
       {isEmpty ? (
         <Card>
@@ -56,16 +74,27 @@ export function DashboardPage() {
             title="Willkommen! Noch keine Daten vorhanden."
             action={
               <div className="flex flex-wrap justify-center gap-2">
-                <Link to="/daten"><Button variant="primary" icon={<FileSpreadsheet className="h-4 w-4" />}>Excel-Datei importieren</Button></Link>
-                <Button icon={<Plus className="h-4 w-4" />} onClick={() => setTripOpen(true)}>Erste Fahrt erfassen</Button>
+                {activePersons === 0 ? (
+                  <Link to="/personen"><Button variant="primary" icon={<Users className="h-4 w-4" />}>Personen anlegen</Button></Link>
+                ) : (
+                  <Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => setTripOpen(true)}>Erste Fahrt eintragen</Button>
+                )}
+                <Link to="/daten"><Button icon={<DatabaseBackup className="h-4 w-4" />}>Backup einspielen</Button></Link>
               </div>
             }
           >
-            Importiere deine bestehende „VW California.xlsx“ oder lege Fahrten und Kosten direkt an.
+            {activePersons === 0
+              ? 'Lege zuerst an, wer das Auto nutzt. Danach kannst du Fahrten und Kosten eintragen.'
+              : 'Trage die erste Fahrt oder Ausgabe ein.'}
           </EmptyState>
         </Card>
       ) : (
         <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-3">
+            <Button variant="primary" className="h-14 text-base" icon={<Plus className="h-5 w-5" />} onClick={() => setTripOpen(true)}>Fahrt eintragen</Button>
+            <Button className="h-14 text-base" icon={<Receipt className="h-5 w-5" />} onClick={() => setExpenseOpen(true)}>Ausgabe eintragen</Button>
+          </div>
+
           {backupDue && (
             <Notice level="info" title={lastBackup ? `Letztes Backup vor ${Math.floor(backupAgeDays)} Tagen` : 'Noch kein Backup erstellt'}>
               Die Daten sind in der Cloud gespeichert. Ein zusätzliches Backup schützt vor versehentlichem Löschen oder Überschreiben.{' '}
@@ -82,72 +111,13 @@ export function DashboardPage() {
             <Notice key={n.code} level={n.level}>{n.message}</Notice>
           ))}
 
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-            <Stat label="Gesamtkosten" icon={<Coins className="h-4 w-4" />} value={formatEuro(s.totalCostCents)} sub={dueCents !== s.totalCostCents ? `davon bis heute fällig: ${formatEuro(dueCents)}` : `${s.costs.length} Buchungen`} />
-            <Stat label="Gesamtkilometer" icon={<Gauge className="h-4 w-4" />} value={formatKm(s.totalKm)} />
-            <Stat label="Kosten pro km" icon={<Route className="h-4 w-4" />} value={formatPricePerKm(s.pricePerKm)} sub={s.directCostCents ? `ohne ${formatEuro(s.directCostCents)} Direktkosten` : 'Ø über alle Fahrten'} />
-            <Stat label="Fahrten" icon={<Car className="h-4 w-4" />} value={formatInt(data.trips.length)} sub={s.invalidTrips.length ? `${s.invalidTrips.length} unvollständig` : undefined} />
-            <Stat label="Personen" icon={<Users className="h-4 w-4" />} value={formatInt(activePersons)} sub={data.persons.length !== activePersons ? `+ ${data.persons.length - activePersons} deaktiviert` : 'aktiv'} />
-          </div>
-
-          <div className="grid gap-6 lg:grid-cols-2">
-            <Card>
-              <CardTitle sub="Gesamter Zeitraum" action={<Link to="/abrechnung" className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:underline">Abrechnung <ArrowRight className="h-3.5 w-3.5" /></Link>}>
-                Kostenanteile je Person
-              </CardTitle>
-              {rows.length === 0 ? (
-                <p className="text-sm text-slate-500">Noch keine Anteile – es fehlen Fahrten mit Kilometern.</p>
-              ) : (
-                <ul className="space-y-4">
-                  {rows.map((r) => (
-                    <li key={r.personId}>
-                      <div className="mb-1.5 flex items-baseline justify-between gap-3 text-sm">
-                        <span className="font-medium text-slate-800">{r.name}{!r.active && <span className="ml-1.5 text-xs font-normal text-slate-500">(inaktiv)</span>}</span>
-                        <span className="tabular font-semibold text-slate-900">{formatEuro(r.totalCents)}</span>
-                      </div>
-                      <Bar value={r.totalCents} max={maxShare} />
-                      <div className="mt-1 text-xs text-slate-500 tabular">{formatKm(r.km)} anteilig · {r.tripCount} Fahrt(en){s.distributedCents > 0 && ` · ${formatPercent(r.totalCents / s.distributedCents)}`}</div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {s.undistributedCents > 0 && <p className="mt-4 text-xs text-amber-700">{formatEuro(s.undistributedCents)} konnten noch nicht verteilt werden.</p>}
-            </Card>
-
-            <Card>
-              <CardTitle sub="Gesamter Zeitraum" action={<Link to="/kosten" className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:underline">Kosten <ArrowRight className="h-3.5 w-3.5" /></Link>}>
-                Kosten nach Kategorie
-              </CardTitle>
-              {s.categories.length === 0 ? (
-                <p className="text-sm text-slate-500">Noch keine Kosten erfasst.</p>
-              ) : (
-                <ul className="space-y-4">
-                  {s.categories.map((c) => {
-                    const cat = catName.get(c.categoryId)
-                    return (
-                      <li key={c.categoryId}>
-                        <div className="mb-1.5 flex items-baseline justify-between gap-3 text-sm">
-                          <span className="flex items-center gap-2 font-medium text-slate-800">
-                            <span className="h-2.5 w-2.5 rounded-full" style={{ background: cat?.color ?? '#94a3b8' }} />
-                            {cat?.name ?? 'Unbekannte Kategorie'}
-                          </span>
-                          <span className="tabular font-semibold text-slate-900">{formatEuro(c.totalCents)}</span>
-                        </div>
-                        <Bar value={c.totalCents} max={s.totalCostCents} color={cat?.color} />
-                        <div className="mt-1 text-xs text-slate-500">{c.entryCount} Buchung(en) · {formatPercent(s.totalCostCents ? c.totalCents / s.totalCostCents : 0)}</div>
-                      </li>
-                    )
-                  })}
-                </ul>
-              )}
-            </Card>
-          </div>
-
-          {openTransfers.length > 0 && (
-            <Card>
-              <CardTitle sub="Gesamter Zeitraum, nach erfassten Zahlern und Ausgleichszahlungen" action={<Link to="/abrechnung" className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:underline">Zum Ausgleich <ArrowRight className="h-3.5 w-3.5" /></Link>}>
-                Offener Ausgleich
-              </CardTitle>
+          <Card>
+            <CardTitle action={<Link to="/abrechnung" className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:underline">Abrechnung <ArrowRight className="h-3.5 w-3.5" /></Link>}>
+              Wer schuldet wem?
+            </CardTitle>
+            {openTransfers.length === 0 ? (
+              <p className="flex items-center gap-2 text-sm text-slate-600"><CheckCircle2 className="h-4 w-4 text-green-600" />Alles ausgeglichen.</p>
+            ) : (
               <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {openTransfers.map((t) => (
                   <li key={`${t.fromPersonId}-${t.toPersonId}`} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
@@ -156,8 +126,11 @@ export function DashboardPage() {
                   </li>
                 ))}
               </ul>
-            </Card>
-          )}
+            )}
+            <p className="mt-3 text-xs text-slate-500 tabular">
+              {formatPricePerKm(s.pricePerKm)} · {formatKm(s.totalKm)} · {formatEuro(s.totalCostCents)} Kosten insgesamt
+            </p>
+          </Card>
 
           <Card padded={false}>
             <div className="p-5 pb-0">
@@ -166,7 +139,7 @@ export function DashboardPage() {
               </CardTitle>
             </div>
             {recent.length === 0 ? (
-              <EmptyState title="Noch keine Fahrten" action={<Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => setTripOpen(true)}>Fahrt erfassen</Button>} />
+              <EmptyState title="Noch keine Fahrten" action={<Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => setTripOpen(true)}>Fahrt eintragen</Button>} />
             ) : (
               <ul className="divide-y divide-slate-100">
                 {recent.map((t) => {
@@ -192,7 +165,68 @@ export function DashboardPage() {
               </ul>
             )}
           </Card>
-          {lastBackup && <p className="text-xs text-slate-500">Letztes Backup: {formatStamp(lastBackup)}</p>}
+
+          <Disclosure label={detailsOpen ? 'Details ausblenden' : 'Details anzeigen (Kennzahlen, Anteile, Kategorien)'} open={detailsOpen} onToggle={toggleDetails}>
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+                <Stat label="Gesamtkosten" icon={<Coins className="h-4 w-4" />} value={formatEuro(s.totalCostCents)} sub={dueCents !== s.totalCostCents ? `davon bis heute fällig: ${formatEuro(dueCents)}` : `${s.costs.length} Buchungen`} />
+                <Stat label="Gesamtkilometer" icon={<Gauge className="h-4 w-4" />} value={formatKm(s.totalKm)} />
+                <Stat label="Kosten pro km" icon={<Route className="h-4 w-4" />} value={formatPricePerKm(s.pricePerKm)} sub={s.directCostCents ? `ohne ${formatEuro(s.directCostCents)} Direktkosten` : 'Ø über alle Fahrten'} />
+                <Stat label="Fahrten" icon={<Car className="h-4 w-4" />} value={formatInt(data.trips.length)} sub={s.invalidTrips.length ? `${s.invalidTrips.length} unvollständig` : undefined} />
+                <Stat label="Personen" icon={<Users className="h-4 w-4" />} value={formatInt(activePersons)} sub={data.persons.length !== activePersons ? `+ ${data.persons.length - activePersons} deaktiviert` : 'aktiv'} />
+              </div>
+
+              <div className="grid gap-6 lg:grid-cols-2">
+                <Card>
+                  <CardTitle sub="Gesamter Zeitraum">Kostenanteile je Person</CardTitle>
+                  {rows.length === 0 ? (
+                    <p className="text-sm text-slate-500">Noch keine Anteile – es fehlen Fahrten mit Kilometern.</p>
+                  ) : (
+                    <ul className="space-y-4">
+                      {rows.map((r) => (
+                        <li key={r.personId}>
+                          <div className="mb-1.5 flex items-baseline justify-between gap-3 text-sm">
+                            <span className="font-medium text-slate-800">{r.name}{!r.active && <span className="ml-1.5 text-xs font-normal text-slate-500">(inaktiv)</span>}</span>
+                            <span className="tabular font-semibold text-slate-900">{formatEuro(r.totalCents)}</span>
+                          </div>
+                          <Bar value={r.totalCents} max={maxShare} />
+                          <div className="mt-1 text-xs text-slate-500 tabular">{formatKm(r.km)} anteilig · {r.tripCount} Fahrt(en){s.distributedCents > 0 && ` · ${formatPercent(r.totalCents / s.distributedCents)}`}</div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {s.undistributedCents > 0 && <p className="mt-4 text-xs text-amber-700">{formatEuro(s.undistributedCents)} konnten noch nicht verteilt werden.</p>}
+                </Card>
+
+                <Card>
+                  <CardTitle sub="Gesamter Zeitraum">Kosten nach Kategorie</CardTitle>
+                  {s.categories.length === 0 ? (
+                    <p className="text-sm text-slate-500">Noch keine Kosten erfasst.</p>
+                  ) : (
+                    <ul className="space-y-4">
+                      {s.categories.map((c) => {
+                        const cat = catName.get(c.categoryId)
+                        return (
+                          <li key={c.categoryId}>
+                            <div className="mb-1.5 flex items-baseline justify-between gap-3 text-sm">
+                              <span className="flex items-center gap-2 font-medium text-slate-800">
+                                <span className="h-2.5 w-2.5 rounded-full" style={{ background: cat?.color ?? '#94a3b8' }} />
+                                {cat?.name ?? 'Unbekannte Kategorie'}
+                              </span>
+                              <span className="tabular font-semibold text-slate-900">{formatEuro(c.totalCents)}</span>
+                            </div>
+                            <Bar value={c.totalCents} max={s.totalCostCents} color={cat?.color} />
+                            <div className="mt-1 text-xs text-slate-500">{c.entryCount} Buchung(en) · {formatPercent(s.totalCostCents ? c.totalCents / s.totalCostCents : 0)}</div>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </Card>
+              </div>
+              {lastBackup && <p className="text-xs text-slate-500">Letztes Backup: {formatStamp(lastBackup)}</p>}
+            </div>
+          </Disclosure>
         </div>
       )}
 

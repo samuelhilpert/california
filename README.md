@@ -3,7 +3,7 @@
 Gemeinsames Fahrtenbuch mit fairer, centgenauer Kostenverteilung für unseren VW California.
 Alle Mitglieder arbeiten auf **einem gemeinsamen Datenstand** (Firebase). Die App funktioniert auch **offline** und lässt sich auf dem Handy wie eine App installieren.
 
-**Funktionen:** Fahrtenbuch, Kosten (einmalig, monatlich, jährlich, auf Monate verteilt), Abrechnung nach Kilometerpreis, Ausgleich „wer schuldet wem“, abgeschlossene Abrechnungen, Excel-Import/-Export, Backup, Mitgliederverwaltung, dunkles Design.
+**Funktionen:** Fahrtenbuch, Kosten (einmalig, monatlich, jährlich, auf Monate verteilt), Abrechnung nach Kilometerpreis, Ausgleich „wer schuldet wem“, abgeschlossene Abrechnungen, Excel-Export, Backup, Mitgliederverwaltung, dunkles Design.
 
 ---
 
@@ -44,7 +44,7 @@ npx firebase deploy --only hosting,firestore:rules,firestore:indexes
 
 ### 4. Fahrtenbuch einrichten und Mitglieder einladen
 1. App öffnen → **Konto erstellen** → E-Mail bestätigen → **Fahrtenbuch einrichten**. Du bist das erste Mitglied.
-2. **Import & Backup** → `VW California.xlsx` importieren (siehe unten).
+2. **Einstellungen → Personen** → alle anlegen, die das Auto nutzen.
 3. **Einstellungen → Mitglieder** → E-Mail-Adressen der anderen Mitglieder **freischalten**.
 4. Diese öffnen den Link, wählen **Konto erstellen** mit genau dieser Adresse und bestätigen die E-Mail. Danach sehen alle denselben Datenstand.
 
@@ -58,7 +58,7 @@ npx firebase deploy --only hosting,firestore:rules,firestore:indexes
 - **Zugriff:** nur angemeldete Personen mit **bestätigter E-Mail-Adresse**, die in der Mitgliederliste stehen. Die Prüfung erzwingt der Server über die Regeln in `firestore.rules`, nicht die App. Die Firebase-Webkonfiguration ist nicht geheim.
 - **Offline:** Jedes Gerät hält eine Kopie im Browser (IndexedDB). Änderungen ohne Netz werden sofort angezeigt und automatisch übertragen, sobald wieder eine Verbindung besteht. Oben steht jeweils der Status „Synchronisiert / Wird synchronisiert / Offline“.
 - **Gleichzeitige Änderungen:** Änderungen anderer erscheinen in Echtzeit. Bearbeiten zwei Personen *denselben* Datensatz gleichzeitig, gilt die zuletzt gespeicherte Fassung.
-- **Backup:** *Import & Backup → Backup herunterladen* erzeugt eine JSON-Datei mit allen Daten. Beim Einspielen wählst du **Zusammenführen** (ergänzt, löscht nichts, legt gleichnamige Personen zusammen) oder **Ersetzen** (Stand entspricht exakt der Sicherung). Das Dashboard erinnert nach 30 Tagen mit Änderungen an ein neues Backup. Backups der früheren lokalen Version (Schema 1) werden erkannt.
+- **Backup:** *Einstellungen → Backup & Export → Backup herunterladen* erzeugt eine JSON-Datei mit allen Daten. Beim Einspielen wählst du **Zusammenführen** (ergänzt, löscht nichts, legt gleichnamige Personen zusammen) oder **Ersetzen** (Stand entspricht exakt der Sicherung). Die Übersicht erinnert nach 30 Tagen mit Änderungen an ein neues Backup. Backups der früheren lokalen Version (Schema 1) werden erkannt.
 
 ---
 
@@ -93,25 +93,13 @@ Beispiel: 600 € / 1.000 km = 0,60 €/km. Eine Fahrt mit 200 km und zwei Perso
 
 ---
 
-## Excel-Import (`VW California.xlsx`)
-
-| Blatt | Verarbeitung |
-| --- | --- |
-| `Fahrtenbuch` | Kopfzeile wird automatisch gesucht. km werden aus den Kilometerständen nachgerechnet, Formelwerte werden nicht vorausgesetzt. „Wer“ wird an `,` `;` `/` `&` und „und“ getrennt. Summenzeilen werden übersprungen. |
-| `Kosten` | Bezeichnung, Betrag, Anzahl, Gesamt. Anzahl > 1 bedeutet monatlich wiederkehrend. Optional: Kategorie, Datum, Bezahlt von, Verteilt auf Monate. |
-| `Kostenverteilung` | Wird nicht importiert. Dient als Quelle für Personennamen und als **Gegenprobe**: Die App rechnet nach und vergleicht mit den Excel-Werten. |
-
-Die Vorschau zeigt den Status jeder Zeile (Bereit, Bitte prüfen, Fehler, Duplikat) mit Erklärung. **Daten können dort korrigiert werden**, z. B. das Jahr der Fahrt vom „29-Dec“. Importierte Datensätze erhalten eine aus ihrem Inhalt abgeleitete ID: Ein wiederholter Import, auch von zwei Geräten gleichzeitig, legt nichts doppelt an. Bestehende Daten werden nie überschrieben.
-
----
-
 ## Entwicklung & Tests
 
 | Befehl | Zweck |
 | --- | --- |
 | `npm run dev` | Entwicklungsserver mit echtem Firebase-Projekt (`.env.local`) |
 | `npm run emulators` + `npm run dev:emulator` | Lokal **ohne** Firebase-Projekt gegen die Emulatoren (benötigt Java 11+) |
-| `npm test` | Unit-Tests: Berechnung, Ausgleich, Wiederholungen, Import/Export, Backup, Zusammenführen |
+| `npm test` | Unit-Tests: Berechnung, Ausgleich, Wiederholungen, Excel-Export, Backup, Zusammenführen |
 | `npm run test:rules` | Tests der Firestore-Sicherheitsregeln im Emulator |
 | `npm run e2e` | End-to-End-Tests im Emulator: Chromium, Firefox, WebKit (Safari) und iPhone, inkl. Barrierefreiheits-Prüfung (axe, WCAG 2.1 AA), Echtzeit, Offline und Zugriffsschutz |
 | `npm run check` | Typprüfung, Lint, Unit- und Regeltests, Build |
@@ -126,10 +114,10 @@ Lokal kann `PLAYWRIGHT_CHROMIUM_PATH` auf ein vorhandenes Chromium zeigen, falls
 src/
   lib/domain/      Fachlogik ohne UI/DB: settlement, balance, allocate, recurrence, tripChecks, period, validation
   lib/store/       Datenschicht: DataStore-Schnittstelle, FirestoreStore (Echtzeit + offline), MemoryStore (Tests), repo
-  lib/io/          Excel-Import/-Export, Backup (Ersetzen/Zusammenführen)
+  lib/io/          Excel-Export, Backup (Ersetzen/Zusammenführen)
   lib/book.ts      Fahrtenbuch-Dokument, Mitglieder
   components/      UI-Bausteine, AuthGate (Login/Einrichtung), Formulare, Ausgleich, abgeschlossene Abrechnungen
-  pages/           Dashboard, Fahrtenbuch, Kosten, Abrechnung, Personen, Import & Backup, Einstellungen
+  pages/           Übersicht, Fahrtenbuch, Kosten, Abrechnung, Einstellungen (mit Unterseiten Personen sowie Backup & Export)
 firestore.rules    Zugriffsregeln (nur bestätigte Mitglieder)
 tests/rules/       Tests der Zugriffsregeln
 e2e/               Playwright-Tests

@@ -5,7 +5,7 @@ import AxeBuilder from '@axe-core/playwright'
 export const PROJECT = 'demo-california'
 const AUTH = 'http://127.0.0.1:9099'
 const FS = 'http://127.0.0.1:8080'
-export const FIXTURE = resolve(import.meta.dirname, '.tmp', 'VW California (Beispiel).xlsx')
+export const FIXTURE = resolve(import.meta.dirname, '.tmp', 'Beispiel-Backup.json')
 export const PASSWORD = 'geheim-1234'
 
 export async function resetEmulators() {
@@ -45,16 +45,16 @@ export async function login(page: Page, email: string) {
 export async function setupBook(page: Page) {
   await expect(page.getByRole('heading', { name: 'Noch kein Zugriff' })).toBeVisible()
   await page.getByRole('button', { name: 'Fahrtenbuch einrichten' }).click()
-  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Übersicht' })).toBeVisible()
 }
 
-export async function importFixture(page: Page, opts: { fixDate?: string } = {}) {
+/** Spielt die Beispiel-Sicherung ein (Zusammenführen). */
+export async function restoreFixture(page: Page) {
   await page.goto('/#/daten')
-  await page.locator('input[type=file][accept^=".xlsx"]').setInputFiles(FIXTURE)
-  await expect(page.getByRole('heading', { name: 'Import-Vorschau' })).toBeVisible()
-  if (opts.fixDate) await page.getByLabel('Datum Zeile 4').fill(opts.fixDate)
-  await page.getByRole('button', { name: 'Auswahl importieren' }).click()
-  await expect(page.getByText(/Import abgeschlossen/)).toBeVisible()
+  await page.locator('input[type=file][accept^=".json"]').setInputFiles(FIXTURE)
+  await expect(page.getByRole('heading', { name: 'Backup einspielen' })).toBeVisible()
+  await page.getByRole('button', { name: /Zusammenführen/ }).click()
+  await expect(page.getByText(/Zusammengeführt:/)).toBeVisible()
 }
 
 /** Prüft die Seite auf schwerwiegende Barrierefreiheitsprobleme (WCAG 2.1 AA). */

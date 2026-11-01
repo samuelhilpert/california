@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { expectAccessible, importFixture, register, resetEmulators, setupBook } from './helpers'
+import { expectAccessible, restoreFixture, register, resetEmulators, setupBook } from './helpers'
 
 const ANNA = 'anna@example.com'
 const BEN = 'ben@example.com'
@@ -19,21 +19,24 @@ async function addTrip(page: Page, o: { date: string; odoStart?: string; odoEnd?
   if (!page.url().endsWith('#/fahrten')) await page.goto('/#/fahrten')
   await page.getByRole('button', { name: 'Neue Fahrt' }).first().click()
   const dlg = page.getByRole('dialog')
-  await dlg.getByLabel('Startdatum').fill(o.date)
-  if (o.to) await type(dlg.getByLabel(/Zielort/), o.to)
+  await dlg.getByLabel('Datum', { exact: true }).fill(o.date)
+  if (o.to) {
+    await dlg.getByRole('button', { name: /Weitere Angaben/ }).click()
+    await type(dlg.getByLabel(/Zielort/), o.to)
+  }
   if (o.odoStart) await type(dlg.getByLabel(/Kilometerstand Beginn/), o.odoStart)
   if (o.odoEnd) await type(dlg.getByLabel(/Kilometerstand Ende/), o.odoEnd)
   if (o.km) await type(dlg.getByLabel('Gefahrene Kilometer'), o.km)
   for (const p of o.persons) await dlg.getByRole('button', { name: p, exact: true }).click()
   // Werte müssen auch nach eintreffenden Echtzeit-Updates erhalten bleiben
   await page.waitForTimeout(300)
-  await expect(dlg.getByLabel('Startdatum')).toHaveValue(o.date)
+  await expect(dlg.getByLabel('Datum', { exact: true })).toHaveValue(o.date)
   if (o.odoStart) await expect(dlg.getByLabel(/Kilometerstand Beginn/)).toHaveValue(o.odoStart)
   if (o.odoEnd) await expect(dlg.getByLabel(/Kilometerstand Ende/)).toHaveValue(o.odoEnd)
   await dlg.getByRole('button', { name: 'Fahrt speichern' }).click()
 }
 
-test('gemeinsames Fahrtenbuch: Einrichtung, Import, Ausgleich, Abschluss, Mitglieder, Echtzeit, Offline', async ({ browser }) => {
+test('gemeinsames Fahrtenbuch: Einrichtung, Backup, Ausgleich, Abschluss, Mitglieder, Echtzeit, Offline', async ({ browser }) => {
   await resetEmulators()
   const annaCtx = await browser.newContext()
   const anna = await annaCtx.newPage()
@@ -50,8 +53,8 @@ test('gemeinsames Fahrtenbuch: Einrichtung, Import, Ausgleich, Abschluss, Mitgli
   await setupBook(anna)
   await expect(anna.getByText('Willkommen! Noch keine Daten vorhanden.')).toBeVisible()
 
-  // --- Excel-Import mit Datumskorrektur in der Vorschau
-  await importFixture(anna, { fixDate: '2025-12-29' })
+  // --- Beispieldaten aus einer Sicherung einspielen
+  await restoreFixture(anna)
   await anna.goto('/#/fahrten')
   await expect(anna.getByRole('cell', { name: '29.12.2025' })).toBeVisible()
 
@@ -129,7 +132,7 @@ test('gemeinsames Fahrtenbuch: Einrichtung, Import, Ausgleich, Abschluss, Mitgli
   const benCtx = await browser.newContext()
   const ben = await benCtx.newPage()
   await register(ben, BEN)
-  await expect(ben.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
+  await expect(ben.getByRole('heading', { name: 'Übersicht' })).toBeVisible()
   await ben.goto('/#/fahrten')
   await expect(ben.getByRole('row').filter({ hasText: 'Gardasee' })).toHaveCount(1)
 
@@ -137,6 +140,7 @@ test('gemeinsames Fahrtenbuch: Einrichtung, Import, Ausgleich, Abschluss, Mitgli
   // Annas Eingabe und Fokus bleiben erhalten; die neue Fahrt erscheint ohne Neuladen.
   await anna.goto('/#/fahrten')
   await anna.getByRole('button', { name: 'Neue Fahrt' }).first().click()
+  await anna.getByRole('dialog').getByRole('button', { name: /Weitere Angaben/ }).click()
   await type(anna.getByRole('dialog').getByLabel(/Zielort/), 'Tippe gerade')
   await addTrip(ben, { date: '2026-02-01', odoStart: '700', odoEnd: '750', persons: ['Ben'], to: 'Echtzeit-Test' })
   await expect(anna.getByRole('row').filter({ hasText: 'Echtzeit-Test' })).toHaveCount(1)

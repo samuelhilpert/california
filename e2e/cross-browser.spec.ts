@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { expectNoHorizontalOverflow, importFixture, register, resetEmulators, setupBook } from './helpers'
+import { expectNoHorizontalOverflow, restoreFixture, register, resetEmulators, setupBook } from './helpers'
 
 // Läuft in Chromium, Firefox und WebKit (Safari-Engine) sowie auf einem iPhone-Profil.
 test('Grundfunktionen in allen Browsern @cross @mobile', async ({ page }, info) => {
@@ -15,7 +15,7 @@ test('Grundfunktionen in allen Browsern @cross @mobile', async ({ page }, info) 
 
   await register(page, email)
   await setupBook(page)
-  await importFixture(page)
+  await restoreFixture(page)
 
   await page.goto('/#/abrechnung')
   await expect(page.getByText('2.553,20 €').first()).toBeVisible()

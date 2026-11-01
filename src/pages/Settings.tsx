@@ -1,7 +1,8 @@
 import { clsx } from 'clsx'
 import { useState } from 'react'
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth'
-import { KeyRound, LogOut, Monitor, Moon, Plus, Smartphone, Sun, Trash2, UserCog } from 'lucide-react'
+import { ChevronRight, DatabaseBackup, KeyRound, LogOut, Monitor, Moon, Plus, Smartphone, Sun, Trash2, UserCog, Users } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { useSession } from '../lib/store/context'
 import { getFirebase } from '../lib/firebase'
 import { authErrorMessage, isValidEmail, normalizeEmail, updateMembers } from '../lib/book'
@@ -76,8 +77,22 @@ export function SettingsPage() {
 
   return (
     <>
-      <PageHeader title="Einstellungen" description="Konto, Mitglieder des gemeinsamen Fahrtenbuchs und Darstellung." />
+      <PageHeader title="Einstellungen" description="Personen, Datensicherung, Mitglieder, Konto und Darstellung." />
       <div className="grid gap-6 lg:grid-cols-2">
+        {([
+          ['/personen', Users, 'Personen', 'Fahrer und Mitfahrer hinzufügen, umbenennen oder deaktivieren'],
+          ['/daten', DatabaseBackup, 'Backup & Export', 'Daten sichern, wiederherstellen oder als Excel exportieren'],
+        ] as const).map(([to, Icon, title, sub]) => (
+          <Link key={to} to={to} className="group flex items-center gap-4 rounded-xl border border-slate-200 bg-surface p-5 shadow-sm transition-colors hover:border-brand-600 hover:bg-brand-50">
+            <span className="rounded-xl bg-brand-50 p-2.5 text-brand-700 group-hover:bg-surface"><Icon className="h-5 w-5" /></span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-semibold text-slate-900">{title}</span>
+              <span className="block text-sm text-slate-500">{sub}</span>
+            </span>
+            <ChevronRight className="h-5 w-5 text-slate-400" />
+          </Link>
+        ))}
+
         <Card className="lg:col-span-2">
           <CardTitle sub="Nur diese E-Mail-Adressen haben Zugriff auf das gemeinsame Fahrtenbuch. Alle Mitglieder sehen und bearbeiten dieselben Daten.">
             <span className="flex items-center gap-2"><UserCog className="h-5 w-5 text-brand-700" />Mitglieder</span>

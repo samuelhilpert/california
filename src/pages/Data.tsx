@@ -1,15 +1,14 @@
 import { clsx } from 'clsx'
 import { useRef, useState } from 'react'
-import { AlertTriangle, Cloud, DatabaseBackup, Download, FileSpreadsheet, GitMerge, Replace, RotateCcw, Trash2, Upload } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { AlertTriangle, ChevronLeft, Cloud, DatabaseBackup, Download, FileSpreadsheet, GitMerge, Replace, RotateCcw, Trash2 } from 'lucide-react'
 import { useAppData, useSession, useSetting } from '../lib/store/context'
 import { setSetting } from '../lib/store/repo'
 import { clearAllData, createBackup, parseBackup, planMerge, planReplace, restoreBackup, type BackupFile } from '../lib/io/backup'
 import { buildDataWorkbook, downloadWorkbook } from '../lib/io/excelExport'
-import { analyzeWorkbook, readWorkbook, type ImportPreview } from '../lib/io/excelImport'
 import { todayIso } from '../lib/domain/dates'
 import { formatStamp } from '../lib/format'
 import { Button, Card, CardTitle, Modal, Notice, PageHeader } from '../components/ui'
-import { ImportPreviewModal } from '../components/ImportPreview'
 import { errorMessage, useFeedback } from '../components/feedback-context'
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024
@@ -30,10 +29,8 @@ export function DataPage() {
   const { store, memberEmails } = useSession()
   const lastBackup = useSetting<string>('lastBackupAt')
   const { toast, confirm } = useFeedback()
-  const [preview, setPreview] = useState<ImportPreview | null>(null)
   const [pendingRestore, setPendingRestore] = useState<BackupFile | null>(null)
   const [busy, setBusy] = useState(false)
-  const xlsxInput = useRef<HTMLInputElement>(null)
   const backupInput = useRef<HTMLInputElement>(null)
 
   const doBackup = async () => {
@@ -81,19 +78,6 @@ export function DataPage() {
     }
   }
 
-  const onXlsxFile = async (file: File) => {
-    setBusy(true)
-    try {
-      if (file.size > MAX_FILE_BYTES) throw new Error('Die Datei ist zu groß (max. 20 MB).')
-      const wb = readWorkbook(new Uint8Array(await file.arrayBuffer()))
-      setPreview(analyzeWorkbook(wb, file.name, data, todayIso()))
-    } catch (e) {
-      toast(`Die Datei konnte nicht gelesen werden: ${errorMessage(e)}`, 'error')
-    } finally {
-      setBusy(false)
-    }
-  }
-
   const exportAll = () => {
     try {
       downloadWorkbook(buildDataWorkbook(data), `VW-California-Daten_${todayIso()}.xlsx`)
@@ -132,7 +116,8 @@ export function DataPage() {
 
   return (
     <>
-      <PageHeader title="Import & Backup" description="Excel-Import, Datensicherung und Export." />
+      <Link to="/einstellungen" className="mb-3 inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:underline"><ChevronLeft className="h-4 w-4" />Einstellungen</Link>
+      <PageHeader title="Backup & Export" description="Datensicherung und Export als Excel-Tabelle." />
 
       <div className="space-y-6">
         <Notice level="info" title="Gemeinsamer Datenstand in der Cloud">
@@ -160,25 +145,10 @@ export function DataPage() {
           </Card>
 
           <Card>
-            <CardTitle sub="z. B. „VW California.xlsx“ mit Fahrtenbuch, Kostenverteilung und Kosten">
-              <span className="flex items-center gap-2"><FileSpreadsheet className="h-5 w-5 text-brand-700" />Excel-Import</span>
-            </CardTitle>
-            <p className="mb-4 text-sm text-slate-600">
-              Vor dem Import siehst du eine Vorschau. Fehlerhafte Zeilen und bereits vorhandene Datensätze werden markiert, Daten lassen sich korrigieren.
-              Bestehende Daten werden nie überschrieben – der Import kann gefahrlos wiederholt werden, auch von verschiedenen Geräten.
-            </p>
-            <Button variant="primary" icon={<Upload className="h-4 w-4" />} onClick={() => pick(xlsxInput)} disabled={busy}>
-              {busy ? 'Datei wird gelesen …' : 'Excel-Datei auswählen'}
-            </Button>
-            <input ref={xlsxInput} type="file" accept=".xlsx,.xlsm,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden"
-              onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void onXlsxFile(f) }} />
-          </Card>
-
-          <Card>
             <CardTitle sub="Fahrtenbuch, Kosten und Personen als Tabellen">
               <span className="flex items-center gap-2"><FileSpreadsheet className="h-5 w-5 text-brand-700" />Excel-Export</span>
             </CardTitle>
-            <p className="mb-4 text-sm text-slate-600">Zum Weiterverarbeiten oder Archivieren. Die Datei lässt sich wieder importieren. Die Abrechnung exportierst du auf der Seite „Abrechnung“.</p>
+            <p className="mb-4 text-sm text-slate-600">Zum Anschauen, Weiterrechnen oder Archivieren, z. B. in Excel oder Numbers. Zum Wiederherstellen dient das Backup, nicht der Excel-Export. Die Abrechnung exportierst du auf der Seite „Abrechnung“.</p>
             <Button icon={<Download className="h-4 w-4" />} onClick={exportAll}>Daten als Excel exportieren</Button>
           </Card>
 
@@ -202,8 +172,6 @@ export function DataPage() {
           <Button variant="danger" icon={<Trash2 className="h-4 w-4" />} onClick={() => void wipe()}>Alle Daten löschen</Button>
         </Card>
       </div>
-
-      {preview && <ImportPreviewModal preview={preview} categories={data.categories} onClose={() => setPreview(null)} />}
 
       <Modal open={pendingRestore != null} onClose={() => setPendingRestore(null)} title="Backup einspielen" size="lg"
         description={pendingRestore && <>Sicherung vom {formatStamp(pendingRestore.exportedAt)}: {counts(pendingRestore.data)}</>}>

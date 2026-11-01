@@ -1,5 +1,5 @@
 import { clsx } from 'clsx'
-import { X, Search, Info, AlertTriangle, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { X, Search, Info, AlertTriangle, AlertCircle, CheckCircle2, ChevronDown } from 'lucide-react'
 import {
   forwardRef,
   useEffect,
@@ -276,5 +276,29 @@ export function Modal({ open, onClose, title, description, children, footer, siz
       </div>
     </div>,
     document.body,
+  )
+}
+
+// ---------------------------------------------------------------- Disclosure
+/**
+ * Aufklappbarer Bereich für selten gebrauchte Angaben oder Details.
+ * Der Zustand liegt beim Aufrufer, damit er z. B. bei Fehlern im Inneren automatisch öffnen kann.
+ */
+export function Disclosure({ label, open, onToggle, children, className }: { label: ReactNode; open: boolean; onToggle: (open: boolean) => void; children: ReactNode; className?: string }) {
+  const id = useId()
+  return (
+    <div className={className}>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => onToggle(!open)}
+        className="inline-flex items-center gap-1.5 rounded-lg py-1 text-sm font-medium text-brand-700 hover:text-brand-800 hover:underline"
+      >
+        <ChevronDown className={clsx('h-4 w-4 transition-transform', open && 'rotate-180')} />
+        {label}
+      </button>
+      {open && <div id={id} className="mt-3">{children}</div>}
+    </div>
   )
 }
