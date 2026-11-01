@@ -11,7 +11,7 @@ import { formatDate, formatInt, formatKm, numberToInput } from '../lib/format'
 import { Button, Disclosure, Field, Input, Modal, Notice, Textarea } from './ui'
 import { PersonMultiSelect } from './PersonMultiSelect'
 import { errorMessage, useFeedback } from './feedback-context'
-import { useMyPerson } from '../lib/store/context'
+import { useMyPerson, useProMode } from '../lib/store/context'
 
 interface Props {
   open: boolean
@@ -35,6 +35,7 @@ function TripForm({ onClose, trip, persons, trips, settlements = [], prefill }: 
   const { toast, confirm } = useFeedback()
   const init = trip ?? prefill
   const me = useMyPerson()
+  const [pro] = useProMode()
   const lastOdo = useMemo(() => {
     const withOdo = trips.filter((t) => t.odoEnd != null && t.id !== trip?.id)
     withOdo.sort((a, b) => (a.startDate === b.startDate ? (a.odoEnd! - b.odoEnd!) : a.startDate < b.startDate ? -1 : 1))
@@ -45,6 +46,7 @@ function TripForm({ onClose, trip, persons, trips, settlements = [], prefill }: 
   const [endDate, setEndDate] = useState(init?.endDate ?? '')
   const [from, setFrom] = useState(init?.from ?? '')
   const [to, setTo] = useState(init?.to ?? '')
+  const [stops, setStops] = useState(init?.stops?.join(', ') ?? '')
   // Neue Fahrt: Startstand = Endstand der letzten Fahrt, damit meist nur noch der Endstand fehlt.
   const prefilledOdo = !init && lastOdo != null
   const [odoStart, setOdoStart] = useState(prefilledOdo ? numberToInput(lastOdo) : numberToInput(init?.odoStart))
@@ -55,7 +57,7 @@ function TripForm({ onClose, trip, persons, trips, settlements = [], prefill }: 
   // Neue Fahrt: Wer sie einträgt, ist meist auch gefahren.
   const [personIds, setPersonIds] = useState<string[]>(init?.personIds ?? (!init && me ? [me.id] : []))
   const [note, setNote] = useState(init?.note ?? '')
-  const [moreOpen, setMoreOpen] = useState(!!(init?.endDate || init?.from || init?.to || init?.note))
+  const [moreOpen, setMoreOpen] = useState(!!(init?.endDate || init?.from || init?.to || init?.note || init?.stops?.length))
   const [errors, setErrors] = useState<FieldErrors>({})
   const [saving, setSaving] = useState(false)
 
@@ -85,6 +87,8 @@ function TripForm({ onClose, trip, persons, trips, settlements = [], prefill }: 
         endDate: endDate || undefined,
         from: from || undefined,
         to: to || undefined,
+        // Bleibt auch ohne Pro-Modus erhalten, wenn jemand anderes Stationen eingetragen hat
+        stops: stops.split(',').map((s) => s.trim()).filter(Boolean),
         odoStart: keepPartialOdo ? init.odoStart : (o1 ?? undefined),
         odoEnd: keepPartialOdo ? init.odoEnd : (o2 ?? undefined),
         km: km as number,
@@ -100,7 +104,7 @@ function TripForm({ onClose, trip, persons, trips, settlements = [], prefill }: 
     const all = { ...validateTrip(draft), ...parseErrors }
     // Fehlt ein Kilometerstand, steht der Hinweis schon am Feld – kein doppelter Kilometer-Fehler.
     if (!kmOnly && (all.odoStart || all.odoEnd)) delete all.km
-    if (hasErrors(all) && (all.endDate || all.from || all.to || all.note)) setMoreOpen(true)
+    if (hasErrors(all) && (all.endDate || all.from || all.to || all.note || all.stops)) setMoreOpen(true)
     setErrors(all)
     if (hasErrors(all)) return
     const similar = findSimilarTrips(draft, trips, trip?.id)
@@ -218,6 +222,11 @@ function TripForm({ onClose, trip, persons, trips, settlements = [], prefill }: 
                 <Input id="t-to" value={to} onChange={(e) => setTo(e.target.value)} placeholder="z. B. Gardasee" maxLength={120} />
               </Field>
             </div>
+            {pro && (
+              <Field label="Zwischenstationen" htmlFor="t-stops" optional error={errors.stops} hint="Mit Komma getrennt, z. B. Barcelona, Valencia. Nur für Karte und Länder – die Kilometer bleiben eine Zahl.">
+                <Input id="t-stops" value={stops} onChange={(e) => setStops(e.target.value)} placeholder="z. B. Barcelona, Valencia, Granada" maxLength={1000} invalid={!!errors.stops} />
+              </Field>
+            )}
             <Field label="Notiz" htmlFor="t-note" optional>
               <Textarea id="t-note" value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={1000} placeholder="z. B. Urlaub, Werkstattfahrt …" />
             </Field>

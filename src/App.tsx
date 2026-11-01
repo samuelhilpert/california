@@ -13,6 +13,7 @@ const ExpensesPage = lazy(() => import('./pages/Expenses').then((m) => ({ defaul
 const SettlementPage = lazy(() => import('./pages/Settlement').then((m) => ({ default: m.SettlementPage })))
 const PeoplePage = lazy(() => import('./pages/People').then((m) => ({ default: m.PeoplePage })))
 const DataPage = lazy(() => import('./pages/Data').then((m) => ({ default: m.DataPage })))
+const ProPage = lazy(() => import('./pages/pro/ProPage').then((m) => ({ default: m.ProPage })))
 const SettingsPage = lazy(() => import('./pages/Settings').then((m) => ({ default: m.SettingsPage })))
 
 const page = (el: ReactNode) => <Suspense fallback={<Loading />}>{el}</Suspense>
@@ -31,6 +32,9 @@ export default function App() {
               <Route path="personen" element={page(<PeoplePage />)} />
               <Route path="daten" element={page(<DataPage />)} />
               <Route path="einstellungen" element={page(<SettingsPage />)} />
+              <Route path="pro" element={page(<ProPage tab="statistik" />)} />
+              <Route path="pro/karte" element={page(<ProPage tab="karte" />)} />
+              <Route path="pro/rueckblick" element={page(<ProPage tab="rueckblick" />)} />
               <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>

@@ -12,6 +12,16 @@
   --color-brand-700: #0f766e;
   --color-brand-800: #115e59;
   --color-brand-900: #134e4a;
+
+  /* Diagramme: eine Reihe in der Markenfarbe; Kalender als einfarbige Stufen hell → dunkel */
+  --color-chart-1: #0d9488;
+  --color-chart-grid: #e2e8f0;
+  --color-chart-axis: #cbd5e1;
+  --color-heat-0: #f1f5f9;
+  --color-heat-1: #99f6e4;
+  --color-heat-2: #2dd4bf;
+  --color-heat-3: #0d9488;
+  --color-heat-4: #115e59;
 }
 
 /*
@@ -43,6 +53,15 @@
   --color-brand-700: #2dd4bf;
   --color-brand-800: #5eead4;
   --color-brand-900: #99f6e4;
+
+  --color-chart-1: #0fa596;
+  --color-chart-grid: #273244;
+  --color-chart-axis: #3a4659;
+  --color-heat-0: #1a2333;
+  --color-heat-1: #134e4a;
+  --color-heat-2: #0f766e;
+  --color-heat-3: #0fa596;
+  --color-heat-4: #5eead4;
 
   --color-amber-50: #2a1f0a;
   --color-amber-200: #5c4310;
@@ -80,3 +99,8 @@
   .tabular { font-variant-numeric: tabular-nums; }
   :focus-visible { @apply outline-2 outline-offset-2 outline-brand-600; }
 }
+
+.trip-map.leaflet-container { font: inherit; }
+/* Grundkarte zurücknehmen, damit Grenzen und besuchte Länder hervortreten */
+.trip-map .leaflet-tile-pane { filter: grayscale(1) contrast(0.85) brightness(1.08); }
+:root.dark .trip-map .leaflet-tile-pane { filter: grayscale(1) invert(1) brightness(0.75) contrast(0.9); }

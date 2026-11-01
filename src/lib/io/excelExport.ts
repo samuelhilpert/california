@@ -46,22 +46,22 @@ export function tripsSheet(trips: Trip[], persons: Person[]): XLSX.WorkSheet {
   const pm = new Map(persons.map((p) => [p.id, p]))
   const sorted = [...trips].sort((a, b) => (a.startDate < b.startDate ? -1 : a.startDate > b.startDate ? 1 : 0))
   const rows: CellValue[][] = [
-    ['Von', 'Bis', 'Startort', 'Zielort', 'Kilometerstand Anfang', 'Kilometerstand Ende', 'gefahrene Kilometer', 'Wer', 'Anzahl Personen', 'Notiz'],
+    ['Von', 'Bis', 'Startort', 'Zielort', 'Zwischenstationen', 'Kilometerstand Anfang', 'Kilometerstand Ende', 'gefahrene Kilometer', 'Wer', 'Anzahl Personen', 'Notiz'],
     ...sorted.map((t) => [
-      date(t.startDate), date(t.endDate), t.from ?? null, t.to ?? null,
+      date(t.startDate), date(t.endDate), t.from ?? null, t.to ?? null, t.stops?.join(', ') ?? null,
       t.odoStart ?? null, t.odoEnd ?? null, km(t.km), names(t.personIds, pm), t.personIds.length, t.note ?? null,
     ]),
     [],
-    ['Summe', null, null, null, null, null, km(sorted.reduce((s, t) => s + t.km, 0)), null, null, `${sorted.length} Fahrten`],
+    ['Summe', null, null, null, null, null, null, km(sorted.reduce((s, t) => s + t.km, 0)), null, null, `${sorted.length} Fahrten`],
   ]
-  return sheet(rows, [12, 12, 18, 18, 20, 20, 18, 30, 15, 30])
+  return sheet(rows, [12, 12, 18, 18, 28, 20, 20, 18, 30, 15, 30])
 }
 
 export function expensesSheet(expenses: Expense[], categories: Category[], persons: Person[]): XLSX.WorkSheet {
   const cm = new Map(categories.map((c) => [c.id, c.name]))
   const pm = new Map(persons.map((p) => [p.id, p]))
   const rows: CellValue[][] = [
-    ['Bezeichnung', 'Kategorie', 'Betrag', 'Anzahl', 'Datum', 'Wiederholung', 'Verteilt auf Monate', 'Bezahlt von', 'Verteilung', 'Direkt verteilt auf', 'Notiz'],
+    ['Bezeichnung', 'Kategorie', 'Betrag', 'Anzahl', 'Datum', 'Wiederholung', 'Verteilt auf Monate', 'Bezahlt von', 'Verteilung', 'Direkt verteilt auf', 'Liter', 'Notiz'],
     ...[...expenses]
       .sort((a, b) => (a.date < b.date ? -1 : 1))
       .map((e) => [
@@ -75,10 +75,11 @@ export function expensesSheet(expenses: Expense[], categories: Category[], perso
         e.paidBy ? pm.get(e.paidBy)?.name ?? 'Unbekannt' : null,
         e.allocation === 'perKm' ? 'über Kilometerpreis' : 'direkt',
         e.allocation === 'direct' ? names(e.directPersonIds ?? [], pm) : null,
+        e.liters ?? null,
         e.note ?? null,
       ]),
   ]
-  return sheet(rows, [28, 22, 12, 8, 12, 22, 12, 16, 20, 26, 30])
+  return sheet(rows, [28, 22, 12, 8, 12, 22, 12, 16, 20, 26, 8, 30])
 }
 
 export function personsSheet(persons: Person[]): XLSX.WorkSheet {

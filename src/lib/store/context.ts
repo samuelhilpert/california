@@ -1,7 +1,7 @@
 import { createContext, useContext, useSyncExternalStore } from 'react'
 import type { AppData, DataStore, SyncStatus } from './types'
 import type { Person, Setting } from '../domain/types'
-import { findMemberPerson } from './repo'
+import { findMemberPerson, setSetting } from './repo'
 
 export interface Session {
   store: DataStore
@@ -29,6 +29,17 @@ export function useAppData(): AppData {
 export function useMyPerson(): Person | undefined {
   const { userEmail } = useSession()
   return findMemberPerson(useAppData().persons, userEmail)
+}
+
+/**
+ * Pro-Modus: zusätzliche Bereiche (Statistik, Karte, Rückblick) und Felder, die nur anzeigen
+ * bzw. zusätzlich pflegen – nie die Abrechnung verändern. Gilt je Konto auf allen Geräten.
+ */
+export function useProMode(): [boolean, (on: boolean) => Promise<void>] {
+  const { userEmail } = useSession()
+  const key = `pro:${userEmail.trim().toLowerCase()}`
+  const on = useSetting<boolean>(key) === true
+  return [on, (v: boolean) => setSetting(key, v)]
 }
 
 export function useSyncStatus(): SyncStatus {

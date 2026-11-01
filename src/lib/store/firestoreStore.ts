@@ -5,7 +5,6 @@ import { emptyData, TABLES, type AppData, type DataStore, type SyncStatus, type 
 /** Firestore erlaubt max. 500 Operationen je Batch. */
 const BATCH_LIMIT = 450
 /** Wie lange online auf die Server-Bestätigung gewartet wird, bevor die UI weitermacht. */
-const ACK_TIMEOUT_MS = 8000
 
 /**
  * Gemeinsamer Datenstand in Firestore unter `books/<bookId>/<tabelle>/<id>`.
@@ -110,12 +109,11 @@ export class FirestoreStore implements DataStore {
       }
       commits.push(batch.commit())
     }
-    const all = Promise.all(commits).then(() => undefined)
-    // Die Änderungen sind sofort im lokalen Cache. Offline wird nicht auf den Server gewartet,
-    // Fehler (z. B. fehlende Berechtigung) werden dann über onError gemeldet.
-    all.catch((e) => this.errorListeners.forEach((l) => l(e)))
-    if (!navigator.onLine) return
-    await Promise.race([all, new Promise<void>((res) => setTimeout(res, ACK_TIMEOUT_MS))])
+    // Die Änderungen stehen sofort im lokalen Cache und sind überall in der App sichtbar.
+    // Auf den Server wird nicht gewartet – so schließen sich Formulare sofort, auch offline oder
+    // bei langsamer Verbindung. Fehler (z. B. fehlende Berechtigung) meldet onError als Hinweis;
+    // den Übertragungsstand zeigt die Statusanzeige („Wird synchronisiert …“).
+    Promise.all(commits).catch((e) => this.errorListeners.forEach((l) => l(e)))
   }
 
   dispose() {

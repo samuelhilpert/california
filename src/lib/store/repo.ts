@@ -139,6 +139,10 @@ export async function deletePerson(id: string, store: DataStore = activeStore())
 // ---------- Fahrten ----------
 export async function saveTrip(draft: TripDraft, id?: string, store: DataStore = activeStore()): Promise<Trip> {
   const d = clean(draft)
+  if (d.stops) {
+    d.stops = d.stops.map((s) => s.trim()).filter(Boolean)
+    if (d.stops.length === 0) delete d.stops
+  }
   const errors = validateTrip(d)
   if (hasErrors(errors)) throw new ValidationError(errors)
   const now = nowStamp()

@@ -41,6 +41,7 @@ export function validateTrip(d: Partial<TripDraft>): FieldErrors {
   else if (d.odoStart != null && d.odoEnd != null && !e.odoEnd && Math.abs(d.odoEnd - d.odoStart - d.km) > 0.05) {
     e.km = 'Die Kilometer stimmen nicht mit der Differenz der Kilometerstände überein.'
   }
+  if (d.stops && (d.stops.length > 30 || d.stops.some((s) => !s.trim() || s.length > 120))) e.stops = 'Bitte höchstens 30 Stationen mit je bis zu 120 Zeichen angeben.'
   if (!d.personIds || d.personIds.length === 0) e.personIds = 'Bitte mindestens eine beteiligte Person auswählen.'
   else if (new Set(d.personIds).size !== d.personIds.length) e.personIds = 'Eine Person wurde doppelt ausgewählt.'
   return e
@@ -55,6 +56,7 @@ export function validateExpense(d: Partial<ExpenseDraft>): FieldErrors {
   else if (d.amountCents === 0) e.amountCents = 'Der Betrag darf nicht 0 € sein.'
   else if (Math.abs(d.amountCents) > 100_000_000) e.amountCents = 'Der Betrag ist unplausibel hoch.'
   if (!d.date || !isIsoDate(d.date)) e.date = 'Bitte ein gültiges Datum angeben.'
+  if (d.liters != null && (!Number.isFinite(d.liters) || d.liters <= 0 || d.liters > 1000)) e.liters = 'Bitte eine Literzahl zwischen 0 und 1.000 angeben.'
   if (d.spreadMonths != null && (!Number.isInteger(d.spreadMonths) || d.spreadMonths < 1 || d.spreadMonths > 120)) e.spreadMonths = 'Bitte eine Monatsanzahl zwischen 1 und 120 angeben.'
   if (d.allocation === 'direct' && (!d.directPersonIds || d.directPersonIds.length === 0)) {
     e.directPersonIds = 'Bitte mindestens eine Person wählen, auf die diese Kosten verteilt werden.'

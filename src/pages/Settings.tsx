@@ -1,9 +1,9 @@
 import { clsx } from 'clsx'
 import { useState } from 'react'
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth'
-import { ChevronRight, DatabaseBackup, KeyRound, LogOut, Monitor, Moon, Plus, Smartphone, Sun, Trash2, UserCog, Users } from 'lucide-react'
+import { ChevronRight, DatabaseBackup, Sparkles, KeyRound, LogOut, Monitor, Moon, Plus, Smartphone, Sun, Trash2, UserCog, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { useAppData, useSession } from '../lib/store/context'
+import { useAppData, useProMode, useSession } from '../lib/store/context'
 import { findMemberPerson, setPersonActive } from '../lib/store/repo'
 import { getFirebase } from '../lib/firebase'
 import { authErrorMessage, isValidEmail, normalizeEmail, updateMembers } from '../lib/book'
@@ -15,6 +15,7 @@ export function SettingsPage() {
   const { userEmail, memberEmails, bookId, signOut } = useSession()
   const { toast, confirm } = useFeedback()
   const data = useAppData()
+  const [pro, setPro] = useProMode()
   const { auth, db } = getFirebase()
   const [newMember, setNewMember] = useState('')
   const [memberError, setMemberError] = useState<string>()
@@ -125,6 +126,28 @@ export function SettingsPage() {
           <p className="mt-3 text-xs text-slate-500">
             So kommen weitere Mitglieder dazu: Adresse hier freischalten → App-Link schicken → dort „Konto erstellen“ mit genau dieser Adresse → E-Mail bestätigen. Fertig.
           </p>
+        </Card>
+
+        <Card className="lg:col-span-2">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 id="pro-title" className="flex items-center gap-2 font-semibold text-slate-900"><Sparkles className="h-5 w-5 text-brand-700" />Pro-Modus</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Zusätzlich: Statistiken, Karte „Wo war der Camper?“, besuchte Länder, Jahresrückblick, Zwischenstationen bei Fahrten und Liter beim Tanken.
+                Die Abrechnung bleibt für alle gleich. Gilt für dein Konto auf allen Geräten.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={pro}
+              aria-labelledby="pro-title"
+              onClick={() => void setPro(!pro)}
+              className={clsx('relative mt-1 inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors', pro ? 'bg-brand-600' : 'bg-slate-300')}
+            >
+              <span className={clsx('inline-block h-5 w-5 rounded-full bg-white shadow transition-transform', pro ? 'translate-x-6' : 'translate-x-1')} />
+            </button>
+          </div>
         </Card>
 
         <Card>

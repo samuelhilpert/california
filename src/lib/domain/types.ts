@@ -19,6 +19,8 @@ export interface Trip {
   endDate?: IsoDate
   from?: string
   to?: string
+  /** Zwischenstationen in Reihenfolge, z. B. ["Barcelona", "Valencia"] – nur für Karte und Länder. */
+  stops?: string[]
   odoStart?: number
   odoEnd?: number
   /** Tatsächlich gefahrene Fahrzeugkilometer – genau ein Wert pro Fahrt. */
@@ -78,6 +80,8 @@ export interface Expense {
   spreadMonths?: number
   /** Person, die die Kosten bezahlt hat (für den Ausgleich). Leer = unbekannt/gemeinsames Konto. */
   paidBy?: string
+  /** Getankte Liter (nur Statistik, z. B. Verbrauch). Ohne Einfluss auf die Abrechnung. */
+  liters?: number
   note?: string
   importKey?: string
   createdAt: string

@@ -51,6 +51,19 @@ npx firebase deploy --only hosting,firestore:rules,firestore:indexes
 
 ---
 
+## Pro-Modus
+
+Unter *Einstellungen → Pro-Modus* (je Konto, auf allen Geräten) erscheint der Bereich **Entdecken**:
+
+- **Statistik:** Kilometer und Kosten je Monat/Jahr, je Person, wer was bezahlt hat, Kosten pro km, Kalender „Wann war der Bus unterwegs?“, Nächte je Person, Verbrauch und Spritpreis.
+- **Karte & Länder:** alle Ziele und Zwischenstationen, besuchte Länder eingefärbt, filterbar nach Jahr und Person.
+- **Jahresrückblick** zum Teilen.
+- Zusatzfelder: **Zwischenstationen** bei Fahrten (eine lange Reise bleibt eine Fahrt mit einer Kilometerzahl) und **Liter** bei Tankfüllungen.
+
+Der Pro-Modus ändert nie die Abrechnung – alle sehen dieselben Zahlen. Orte werden über OpenStreetMap (Nominatim) gesucht und je Gerät im Browser zwischengespeichert; Kartenkacheln von OpenStreetMap, Ländergrenzen von Natural Earth (`public/geo/laender.json`, gemeinfrei).
+
+---
+
 ## Daten, Sicherheit, Offline
 
 - **Speicherort:** Firestore im eigenen Firebase-Projekt (Region Frankfurt). Pfad `books/<VITE_BOOK_ID>/…`.

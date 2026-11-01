@@ -21,7 +21,7 @@ export default async function globalSetup() {
         { id: 'p-anna', name: 'Anna', active: true, createdAt: at },
       ],
       trips: [
-        { id: 't-1', startDate: '2025-12-29', odoStart: 20, odoEnd: 520, km: 500, personIds: ['p-clara', 'p-ben', 'p-anna'], createdAt: at, updatedAt: at },
+        { id: 't-1', startDate: '2025-12-29', endDate: '2026-01-02', from: 'München', stops: ['Lyon'], to: 'Barcelona', odoStart: 20, odoEnd: 520, km: 500, personIds: ['p-clara', 'p-ben', 'p-anna'], createdAt: at, updatedAt: at },
       ],
       expenses: [
         { id: 'e-1', title: 'Leasingrate', categoryId: 'leasing', amountCents: 765960, date: '2025-12-29', allocation: 'perKm', createdAt: at, updatedAt: at },
