@@ -38,7 +38,7 @@ function originalLikeWorkbook(opts: { cachedValues: boolean; extraRows?: unknown
     A3: { t: 's', v: 'Von ' }, B3: { t: 's', v: 'Bis' }, C3: { t: 's', v: 'Kilometerstand Anfang' }, D3: { t: 's', v: 'Kilometerstand Ende' },
     E3: { t: 's', v: 'gefahrene Kilometer' }, F3: { t: 's', v: 'Wer' }, G3: { t: 's', v: 'Kosten für Fahrt' },
     A4: { t: 'n', v: 46385, z: 'd-mmm' }, B4: { t: 'n', v: 46385, z: 'd-mmm' }, C4: { t: 'n', v: 20 }, D4: { t: 'n', v: 520 },
-    E4: { t: opts.cachedValues ? 'n' : 'z', v: v(500), f: 'D4-C4' }, F4: { t: 's', v: 'Konrad, Dennis, Samuel' },
+    E4: { t: opts.cachedValues ? 'n' : 'z', v: v(500), f: 'D4-C4' }, F4: { t: 's', v: 'Clara, Ben, Anna' },
     E6: { t: opts.cachedValues ? 'n' : 'z', v: v(500), f: 'SUM(E4:E5)' },
     '!ref': 'A1:G6',
   }
@@ -53,9 +53,9 @@ function originalLikeWorkbook(opts: { cachedValues: boolean; extraRows?: unknown
     A5: { t: 's', v: 'Gesamt KM' }, B5: { t: 'n', v: 500 },
     A7: { t: 's', v: 'Kosten pro KM' }, B7: { t: 'n', v: 15.3192 },
     A10: { t: 's', v: 'Kostenverteilung nach Fahrer' },
-    A11: { t: 's', v: 'Konrad' }, B11: { t: 'n', v: 2553.2 },
-    A12: { t: 's', v: 'Dennis' }, B12: { t: 'n', v: 2553.2 },
-    A13: { t: 's', v: 'Samuel' }, B13: { t: 'n', v: 2553.2 },
+    A11: { t: 's', v: 'Clara' }, B11: { t: 'n', v: 2553.2 },
+    A12: { t: 's', v: 'Ben' }, B12: { t: 'n', v: 2553.2 },
+    A13: { t: 's', v: 'Anna' }, B13: { t: 'n', v: 2553.2 },
     '!ref': 'A3:B13',
   }
   if (opts.extraRows) {
@@ -81,13 +81,13 @@ describe('Excel-Import', () => {
     const p = analyzeWorkbook(originalLikeWorkbook({ cachedValues: true }), 'VW California.xlsx', await existing(), TODAY)
     expect(p.trips).toHaveLength(1)
     const t = p.trips[0]
-    expect(t.draft).toMatchObject({ startDate: '2026-12-29', odoStart: 20, odoEnd: 520, km: 500, personNames: ['Konrad', 'Dennis', 'Samuel'] })
+    expect(t.draft).toMatchObject({ startDate: '2026-12-29', odoStart: 20, odoEnd: 520, km: 500, personNames: ['Clara', 'Ben', 'Anna'] })
     expect(t.draft!.endDate).toBeUndefined()
     expect(t.status).toBe('warning') // Jahr unsichtbar + Zukunftsdatum
     expect(t.messages.join(' ')).toMatch(/Jahr/)
     expect(p.expenses).toHaveLength(1)
     expect(p.expenses[0].draft).toMatchObject({ title: 'Leasingrate', categoryId: 'leasing', amountCents: 31915, frequency: 'monthly', count: 24 })
-    expect(p.persons.map((x) => x.name)).toEqual(['Konrad', 'Dennis', 'Samuel'])
+    expect(p.persons.map((x) => x.name)).toEqual(['Clara', 'Ben', 'Anna'])
     expect(p.referenceCheck?.matches).toBe(true)
     expect(p.referenceCheck?.rows.every((r) => r.appCents === 255320)).toBe(true)
   })
@@ -102,10 +102,10 @@ describe('Excel-Import', () => {
     const wb = originalLikeWorkbook({
       cachedValues: true,
       extraRows: [
-        ['kein datum', null, 100, 200, null, 'Samuel'],
-        [46000, null, 300, 250, null, 'Dennis'],
+        ['kein datum', null, 100, 200, null, 'Anna'],
+        [46000, null, 300, 250, null, 'Ben'],
         [46001, null, null, null, 40, ''],
-        [46002, null, null, null, 'viel', 'Konrad'],
+        [46002, null, null, null, 'viel', 'Clara'],
       ],
     })
     const p = analyzeWorkbook(wb, 'x.xlsx', await existing(), TODAY)
@@ -121,7 +121,7 @@ describe('Excel-Import', () => {
   })
 
   it('erkennt Personennamen mit verschiedenen Trennzeichen', () => {
-    expect(splitPersonNames('Konrad, Dennis und Samuel')).toEqual(['Konrad', 'Dennis', 'Samuel'])
+    expect(splitPersonNames('Clara, Ben und Anna')).toEqual(['Clara', 'Ben', 'Anna'])
     expect(splitPersonNames('Anna / Ben; anna')).toEqual(['Anna', 'Ben'])
   })
 
@@ -156,14 +156,14 @@ describe('Excel-Import', () => {
   })
 
   it('erkennt manuell erfasste gleiche Fahrten als Duplikat und nutzt vorhandene Personen (auch nach Umbenennung keine Doppelanlage)', async () => {
-    const k = await addPerson('konrad', db)
-    const d = await addPerson('Dennis', db)
-    const s = await addPerson('Samuel', db)
+    const k = await addPerson('clara', db)
+    const d = await addPerson('Ben', db)
+    const s = await addPerson('Anna', db)
     await saveTrip({ startDate: '2026-12-29', km: 500, personIds: [k.id, d.id, s.id] }, undefined, db)
     const p = analyzeWorkbook(originalLikeWorkbook({ cachedValues: true }), 'x.xlsx', await existing(), TODAY)
     expect(p.trips[0].status).toBe('duplicate')
     expect(p.trips[0].selected).toBe(false)
-    expect(p.persons.find((x) => x.name === 'Konrad')?.existingId).toBe(k.id)
+    expect(p.persons.find((x) => x.name === 'Clara')?.existingId).toBe(k.id)
   })
 
   it('verlangt ein Startdatum für Kosten ohne Datum', async () => {

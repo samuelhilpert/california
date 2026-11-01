@@ -1,8 +1,8 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { expectAccessible, importFixture, register, resetEmulators, setupBook } from './helpers'
 
-const SAMUEL = 'samuel@example.com'
-const DENNIS = 'dennis@example.com'
+const ANNA = 'anna@example.com'
+const BEN = 'ben@example.com'
 const EVE = 'eve@example.com'
 
 test.describe.configure({ mode: 'serial' })
@@ -35,124 +35,124 @@ async function addTrip(page: Page, o: { date: string; odoStart?: string; odoEnd?
 
 test('gemeinsames Fahrtenbuch: Einrichtung, Import, Ausgleich, Abschluss, Mitglieder, Echtzeit, Offline', async ({ browser }) => {
   await resetEmulators()
-  const samCtx = await browser.newContext()
-  const sam = await samCtx.newPage()
+  const annaCtx = await browser.newContext()
+  const anna = await annaCtx.newPage()
   const errors: string[] = []
-  sam.on('pageerror', (e) => errors.push(e.message))
+  anna.on('pageerror', (e) => errors.push(e.message))
 
   // --- Login-Seite barrierefrei
-  await sam.goto('/')
-  await expect(sam.getByRole('heading', { name: 'Anmelden' })).toBeVisible()
-  await expectAccessible(sam, 'Anmeldung')
+  await anna.goto('/')
+  await expect(anna.getByRole('heading', { name: 'Anmelden' })).toBeVisible()
+  await expectAccessible(anna, 'Anmeldung')
 
   // --- Registrierung, E-Mail-Bestätigung, Einrichtung
-  await register(sam, SAMUEL)
-  await setupBook(sam)
-  await expect(sam.getByText('Willkommen! Noch keine Daten vorhanden.')).toBeVisible()
+  await register(anna, ANNA)
+  await setupBook(anna)
+  await expect(anna.getByText('Willkommen! Noch keine Daten vorhanden.')).toBeVisible()
 
   // --- Excel-Import mit Datumskorrektur in der Vorschau
-  await importFixture(sam, { fixDate: '2025-12-29' })
-  await sam.goto('/#/fahrten')
-  await expect(sam.getByRole('cell', { name: '29.12.2025' })).toBeVisible()
+  await importFixture(anna, { fixDate: '2025-12-29' })
+  await anna.goto('/#/fahrten')
+  await expect(anna.getByRole('cell', { name: '29.12.2025' })).toBeVisible()
 
   // --- Abrechnung wie in Excel
-  await sam.goto('/#/abrechnung')
-  const shares = sam.locator('table').first().locator('tbody > tr')
+  await anna.goto('/#/abrechnung')
+  const shares = anna.locator('table').first().locator('tbody > tr')
   await expect(shares).toHaveCount(3)
-  for (const name of ['Konrad', 'Dennis', 'Samuel']) {
+  for (const name of ['Clara', 'Ben', 'Anna']) {
     await expect(shares.filter({ hasText: name })).toContainText('2.553,20 €')
   }
 
-  // --- Leasing wurde von Samuel bezahlt → Ausgleich
-  await sam.goto('/#/kosten')
-  await sam.getByRole('button', { name: 'Ausgabe bearbeiten' }).first().click()
-  await sam.getByRole('dialog').getByLabel('Bezahlt von').selectOption({ label: 'Samuel' })
-  await sam.getByRole('dialog').getByRole('button', { name: 'Änderungen speichern' }).click()
-  await expect(sam.getByText('bezahlt von Samuel')).toBeVisible()
+  // --- Leasing wurde von Anna bezahlt → Ausgleich
+  await anna.goto('/#/kosten')
+  await anna.getByRole('button', { name: 'Ausgabe bearbeiten' }).first().click()
+  await anna.getByRole('dialog').getByLabel('Bezahlt von').selectOption({ label: 'Anna' })
+  await anna.getByRole('dialog').getByRole('button', { name: 'Änderungen speichern' }).click()
+  await expect(anna.getByText('bezahlt von Anna')).toBeVisible()
 
-  await sam.goto('/#/abrechnung')
-  const transfers = sam.locator('li').filter({ has: sam.getByRole('button', { name: 'Als bezahlt erfassen' }) })
+  await anna.goto('/#/abrechnung')
+  const transfers = anna.locator('li').filter({ has: anna.getByRole('button', { name: 'Als bezahlt erfassen' }) })
   await expect(transfers).toHaveCount(2)
   await expect(transfers.first()).toContainText('2.553,20 €')
-  await transfers.filter({ hasText: 'Konrad' }).getByRole('button', { name: 'Als bezahlt erfassen' }).click()
-  await sam.getByRole('dialog').getByRole('button', { name: 'Erfassen' }).click()
+  await transfers.filter({ hasText: 'Clara' }).getByRole('button', { name: 'Als bezahlt erfassen' }).click()
+  await anna.getByRole('dialog').getByRole('button', { name: 'Erfassen' }).click()
   await expect(transfers).toHaveCount(1)
-  await expect(sam.getByText('Ausgleichszahlungen im Zeitraum')).toBeVisible()
+  await expect(anna.getByText('Ausgleichszahlungen im Zeitraum')).toBeVisible()
 
   // --- Abrechnung abschließen
-  await sam.getByRole('button', { name: 'Abschließen' }).first().click()
-  await sam.getByRole('dialog').getByLabel('Titel').fill('Abrechnung Test')
-  await sam.getByRole('dialog').getByRole('button', { name: 'Abschließen' }).click()
-  await expect(sam.getByText('Abrechnung Test')).toBeVisible()
-  await expect(sam.getByText('Entspricht dem aktuellen Stand')).toBeVisible()
-  await expectAccessible(sam, 'Abrechnung')
+  await anna.getByRole('button', { name: 'Abschließen' }).first().click()
+  await anna.getByRole('dialog').getByLabel('Titel').fill('Abrechnung Test')
+  await anna.getByRole('dialog').getByRole('button', { name: 'Abschließen' }).click()
+  await expect(anna.getByText('Abrechnung Test')).toBeVisible()
+  await expect(anna.getByText('Entspricht dem aktuellen Stand')).toBeVisible()
+  await expectAccessible(anna, 'Abrechnung')
 
   // --- Kilometerlücke erkennen und nachtragen
-  await addTrip(sam, { date: '2026-01-10', odoStart: '600', odoEnd: '700', persons: ['Samuel'], to: 'Gardasee' })
-  await expect(sam.getByText(/Lücke von 80 km/)).toBeVisible()
-  await sam.getByRole('button', { name: 'Fahrt nachtragen' }).click()
-  const dlg = sam.getByRole('dialog')
+  await addTrip(anna, { date: '2026-01-10', odoStart: '600', odoEnd: '700', persons: ['Anna'], to: 'Gardasee' })
+  await expect(anna.getByText(/Lücke von 80 km/)).toBeVisible()
+  await anna.getByRole('button', { name: 'Fahrt nachtragen' }).click()
+  const dlg = anna.getByRole('dialog')
   await expect(dlg.getByLabel(/Kilometerstand Beginn/)).toHaveValue('520')
   await expect(dlg.getByLabel(/Kilometerstand Ende/)).toHaveValue('600')
-  await dlg.getByRole('button', { name: 'Dennis', exact: true }).click()
+  await dlg.getByRole('button', { name: 'Ben', exact: true }).click()
   await dlg.getByRole('button', { name: 'Fahrt speichern' }).click()
-  await expect(sam.getByText(/Lücke von/)).toHaveCount(0)
+  await expect(anna.getByText(/Lücke von/)).toHaveCount(0)
 
   // --- Abweichung zur abgeschlossenen Abrechnung wird angezeigt
-  await sam.goto('/#/abrechnung')
-  await expect(sam.getByText(/Aktuelle Daten weichen ab/)).toBeVisible()
+  await anna.goto('/#/abrechnung')
+  await expect(anna.getByText(/Aktuelle Daten weichen ab/)).toBeVisible()
 
   // --- Duplikat-Warnung
-  await addTrip(sam, { date: '2026-01-10', odoStart: '600', odoEnd: '700', persons: ['Samuel'] })
-  await expect(sam.getByRole('heading', { name: 'Ähnliche Fahrt bereits vorhanden' })).toBeVisible()
-  await sam.getByRole('button', { name: 'Abbrechen' }).last().click()
-  await sam.keyboard.press('Escape')
+  await addTrip(anna, { date: '2026-01-10', odoStart: '600', odoEnd: '700', persons: ['Anna'] })
+  await expect(anna.getByRole('heading', { name: 'Ähnliche Fahrt bereits vorhanden' })).toBeVisible()
+  await anna.getByRole('button', { name: 'Abbrechen' }).last().click()
+  await anna.keyboard.press('Escape')
 
   // --- Löschen und Rückgängig
-  await sam.goto('/#/fahrten')
-  const gardaRow = sam.getByRole('row').filter({ hasText: 'Gardasee' })
+  await anna.goto('/#/fahrten')
+  const gardaRow = anna.getByRole('row').filter({ hasText: 'Gardasee' })
   await gardaRow.getByRole('button', { name: 'Fahrt löschen' }).click()
-  await sam.getByRole('dialog').getByRole('button', { name: 'Löschen' }).click()
+  await anna.getByRole('dialog').getByRole('button', { name: 'Löschen' }).click()
   await expect(gardaRow).toHaveCount(0)
-  await sam.getByRole('button', { name: 'Rückgängig' }).click()
-  await expect(sam.getByRole('row').filter({ hasText: 'Gardasee' })).toHaveCount(1)
-  await expectAccessible(sam, 'Fahrtenbuch')
+  await anna.getByRole('button', { name: 'Rückgängig' }).click()
+  await expect(anna.getByRole('row').filter({ hasText: 'Gardasee' })).toHaveCount(1)
+  await expectAccessible(anna, 'Fahrtenbuch')
 
   // --- Mitglied freischalten
-  await sam.goto('/#/einstellungen')
-  await sam.getByLabel('E-Mail-Adresse des neuen Mitglieds').fill(DENNIS)
-  await sam.getByRole('button', { name: 'Freischalten' }).click()
-  await expect(sam.getByText(DENNIS, { exact: true })).toBeVisible()
-  await expectAccessible(sam, 'Einstellungen')
+  await anna.goto('/#/einstellungen')
+  await anna.getByLabel('E-Mail-Adresse des neuen Mitglieds').fill(BEN)
+  await anna.getByRole('button', { name: 'Freischalten' }).click()
+  await expect(anna.getByText(BEN, { exact: true })).toBeVisible()
+  await expectAccessible(anna, 'Einstellungen')
 
-  // --- Dennis registriert sich und sieht denselben Datenstand
-  const denCtx = await browser.newContext()
-  const den = await denCtx.newPage()
-  await register(den, DENNIS)
-  await expect(den.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
-  await den.goto('/#/fahrten')
-  await expect(den.getByRole('row').filter({ hasText: 'Gardasee' })).toHaveCount(1)
+  // --- Ben registriert sich und sieht denselben Datenstand
+  const benCtx = await browser.newContext()
+  const ben = await benCtx.newPage()
+  await register(ben, BEN)
+  await expect(ben.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
+  await ben.goto('/#/fahrten')
+  await expect(ben.getByRole('row').filter({ hasText: 'Gardasee' })).toHaveCount(1)
 
-  // --- Echtzeit: Dennis erfasst eine Fahrt, während Samuel gerade tippt.
-  // Samuels Eingabe und Fokus bleiben erhalten; die neue Fahrt erscheint ohne Neuladen.
-  await sam.goto('/#/fahrten')
-  await sam.getByRole('button', { name: 'Neue Fahrt' }).first().click()
-  await type(sam.getByRole('dialog').getByLabel(/Zielort/), 'Tippe gerade')
-  await addTrip(den, { date: '2026-02-01', odoStart: '700', odoEnd: '750', persons: ['Dennis'], to: 'Echtzeit-Test' })
-  await expect(sam.getByRole('row').filter({ hasText: 'Echtzeit-Test' })).toHaveCount(1)
-  expect(await sam.evaluate(() => document.activeElement?.id)).toBe('t-to')
-  await expect(sam.getByRole('dialog').getByLabel(/Zielort/)).toHaveValue('Tippe gerade')
-  await sam.getByRole('dialog').getByRole('button', { name: 'Abbrechen' }).click()
+  // --- Echtzeit: Ben erfasst eine Fahrt, während Anna gerade tippt.
+  // Annas Eingabe und Fokus bleiben erhalten; die neue Fahrt erscheint ohne Neuladen.
+  await anna.goto('/#/fahrten')
+  await anna.getByRole('button', { name: 'Neue Fahrt' }).first().click()
+  await type(anna.getByRole('dialog').getByLabel(/Zielort/), 'Tippe gerade')
+  await addTrip(ben, { date: '2026-02-01', odoStart: '700', odoEnd: '750', persons: ['Ben'], to: 'Echtzeit-Test' })
+  await expect(anna.getByRole('row').filter({ hasText: 'Echtzeit-Test' })).toHaveCount(1)
+  expect(await anna.evaluate(() => document.activeElement?.id)).toBe('t-to')
+  await expect(anna.getByRole('dialog').getByLabel(/Zielort/)).toHaveValue('Tippe gerade')
+  await anna.getByRole('dialog').getByRole('button', { name: 'Abbrechen' }).click()
 
   // --- Offline erfassen, später synchronisieren
-  await samCtx.setOffline(true)
-  await expect(sam.getByText('Offline').first()).toBeVisible()
-  await addTrip(sam, { date: '2026-02-05', odoStart: '750', odoEnd: '800', persons: ['Samuel'], to: 'Offline-Fahrt' })
-  await expect(sam.getByRole('row').filter({ hasText: 'Offline-Fahrt' })).toHaveCount(1)
-  await expect(den.getByRole('row').filter({ hasText: 'Offline-Fahrt' })).toHaveCount(0)
-  await samCtx.setOffline(false)
-  await expect(den.getByRole('row').filter({ hasText: 'Offline-Fahrt' })).toHaveCount(1, { timeout: 20_000 })
-  await expect(sam.getByText('Synchronisiert').first()).toBeVisible({ timeout: 20_000 })
+  await annaCtx.setOffline(true)
+  await expect(anna.getByText('Offline').first()).toBeVisible()
+  await addTrip(anna, { date: '2026-02-05', odoStart: '750', odoEnd: '800', persons: ['Anna'], to: 'Offline-Fahrt' })
+  await expect(anna.getByRole('row').filter({ hasText: 'Offline-Fahrt' })).toHaveCount(1)
+  await expect(ben.getByRole('row').filter({ hasText: 'Offline-Fahrt' })).toHaveCount(0)
+  await annaCtx.setOffline(false)
+  await expect(ben.getByRole('row').filter({ hasText: 'Offline-Fahrt' })).toHaveCount(1, { timeout: 20_000 })
+  await expect(anna.getByText('Synchronisiert').first()).toBeVisible({ timeout: 20_000 })
 
   // --- Fremde Person ohne Freischaltung hat keinen Zugriff
   const eveCtx = await browser.newContext()
@@ -163,17 +163,17 @@ test('gemeinsames Fahrtenbuch: Einrichtung, Import, Ausgleich, Abschluss, Mitgli
   await expect(eve.getByText(/existiert bereits/)).toBeVisible()
 
   // --- Dunkles Design
-  await sam.goto('/#/einstellungen')
-  await sam.getByRole('radio', { name: 'Dunkel' }).click()
-  await expect(sam.locator('html')).toHaveClass(/dark/)
-  await sam.goto('/#/')
-  await expectAccessible(sam, 'Dashboard (dunkel)')
-  await sam.goto('/#/abrechnung')
-  await expectAccessible(sam, 'Abrechnung (dunkel)')
-  await sam.screenshot({ path: 'test-results/abrechnung-dunkel.png', fullPage: true })
-  await sam.reload()
-  await expect(sam.locator('html')).toHaveClass(/dark/)
+  await anna.goto('/#/einstellungen')
+  await anna.getByRole('radio', { name: 'Dunkel' }).click()
+  await expect(anna.locator('html')).toHaveClass(/dark/)
+  await anna.goto('/#/')
+  await expectAccessible(anna, 'Dashboard (dunkel)')
+  await anna.goto('/#/abrechnung')
+  await expectAccessible(anna, 'Abrechnung (dunkel)')
+  await anna.screenshot({ path: 'test-results/abrechnung-dunkel.png', fullPage: true })
+  await anna.reload()
+  await expect(anna.locator('html')).toHaveClass(/dark/)
 
   expect(errors).toEqual([])
-  await Promise.all([samCtx.close(), denCtx.close(), eveCtx.close()])
+  await Promise.all([annaCtx.close(), benCtx.close(), eveCtx.close()])
 })

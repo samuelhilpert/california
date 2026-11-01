@@ -97,13 +97,13 @@ export function SettingsPage() {
           </ul>
           <form className="flex flex-col gap-2 sm:flex-row sm:items-start" onSubmit={(e) => { e.preventDefault(); void addMember() }}>
             <div className="flex-1">
-              <Input type="email" value={newMember} onChange={(e) => { setNewMember(e.target.value); setMemberError(undefined) }} placeholder="E-Mail-Adresse, z. B. dennis@example.com" aria-label="E-Mail-Adresse des neuen Mitglieds" invalid={!!memberError} />
+              <Input type="email" value={newMember} onChange={(e) => { setNewMember(e.target.value); setMemberError(undefined) }} placeholder="E-Mail-Adresse, z. B. name@example.com" aria-label="E-Mail-Adresse des neuen Mitglieds" invalid={!!memberError} />
               {memberError && <p className="mt-1 text-xs text-red-600">{memberError}</p>}
             </div>
             <Button type="submit" variant="primary" icon={<Plus className="h-4 w-4" />} disabled={!newMember.trim()}>Freischalten</Button>
           </form>
           <p className="mt-3 text-xs text-slate-500">
-            So kommen Dennis und Konrad dazu: Adresse hier freischalten → App-Link schicken → dort „Konto erstellen“ mit genau dieser Adresse → E-Mail bestätigen. Fertig.
+            So kommen weitere Mitglieder dazu: Adresse hier freischalten → App-Link schicken → dort „Konto erstellen“ mit genau dieser Adresse → E-Mail bestätigen. Fertig.
           </p>
         </Card>
 

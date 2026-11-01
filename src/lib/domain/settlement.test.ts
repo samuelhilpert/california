@@ -18,19 +18,19 @@ const trip = (id: string, km: number, personIds: string[], startDate = '2026-01-
 const share = (d: ReturnType<typeof computeDistribution>, pid: string) => d.persons.find((p) => p.personId === pid)?.totalCents ?? 0
 
 describe('computeDistribution – Beispiel aus der Anforderung', () => {
-  // 600 € auf 1.000 km → 0,60 €/km. Fahrt D (400 km, Samuel) ergänzt das Beispiel auf 1.000 km.
+  // 600 € auf 1.000 km → 0,60 €/km. Fahrt D (400 km, Anna) ergänzt das Beispiel auf 1.000 km.
   const d = computeDistribution(
-    [trip('A', 100, ['samuel']), trip('B', 200, ['dennis', 'konrad']), trip('C', 300, ['dennis', 'konrad', 'samuel']), trip('D', 400, ['samuel'])],
+    [trip('A', 100, ['anna']), trip('B', 200, ['ben', 'clara']), trip('C', 300, ['ben', 'clara', 'anna']), trip('D', 400, ['anna'])],
     [cost(60000)],
   )
-  it('berechnet den Kilometerpreis', () => {
+  it('berechnet ben Kilometerpreis', () => {
     expect(d.totalKm).toBe(1000)
     expect(d.pricePerKm).toBeCloseTo(0.6, 10)
   })
   it('Fahrt mit einer Person: Person trägt alles', () => {
     const a = d.trips.find((t) => t.tripId === 'A')!
     expect(a.costCents).toBe(6000)
-    expect(a.shares).toEqual([{ personId: 'samuel', km: 100, cents: 6000 }])
+    expect(a.shares).toEqual([{ personId: 'anna', km: 100, cents: 6000 }])
   })
   it('Fahrt mit zwei Personen: hälftig', () => {
     const b = d.trips.find((t) => t.tripId === 'B')!
@@ -44,9 +44,9 @@ describe('computeDistribution – Beispiel aus der Anforderung', () => {
     expect(c.shares.map((s) => s.cents)).toEqual([6000, 6000, 6000])
   })
   it('summiert die Anteile je Person', () => {
-    expect(share(d, 'samuel')).toBe(6000 + 6000 + 24000)
-    expect(share(d, 'dennis')).toBe(12000)
-    expect(share(d, 'konrad')).toBe(12000)
+    expect(share(d, 'anna')).toBe(6000 + 6000 + 24000)
+    expect(share(d, 'ben')).toBe(12000)
+    expect(share(d, 'clara')).toBe(12000)
     expect(d.distributedCents).toBe(60000)
   })
   it('zählt die Kilometer einer Fahrt mit mehreren Personen nur einmal', () => {
@@ -161,7 +161,7 @@ describe('Rundung', () => {
 })
 
 describe('Direkt zugeordnete Kosten (nicht über Kilometerpreis)', () => {
-  it('fließen nicht in den Kilometerpreis ein und werden nicht doppelt verrechnet', () => {
+  it('fließen nicht in ben Kilometerpreis ein und werden nicht doppelt verrechnet', () => {
     const d = computeDistribution(
       [trip('T', 100, ['a', 'b'])],
       [cost(10000), cost(3001, { allocation: 'direct', directPersonIds: ['a', 'c'] })],
