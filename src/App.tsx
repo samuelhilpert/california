@@ -36,6 +36,7 @@ export default function App() {
               <Route path="pro/tanken" element={page(<ProPage tab="tanken" />)} />
               <Route path="pro/karte" element={page(<ProPage tab="karte" />)} />
               <Route path="pro/rueckblick" element={page(<ProPage tab="rueckblick" />)} />
+              <Route path="pro/erfolge" element={page(<ProPage tab="erfolge" />)} />
               <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>

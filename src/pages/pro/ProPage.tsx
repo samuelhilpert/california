@@ -1,26 +1,29 @@
 import { clsx } from 'clsx'
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
-import { BarChart3, CalendarDays, Fuel, Gauge, Map as MapIcon, Moon, PartyPopper, Route as RouteIcon, Sparkles, Wallet } from 'lucide-react'
+import { BarChart3, CalendarDays, Fuel, Trophy, Gauge, Map as MapIcon, Moon, PartyPopper, Route as RouteIcon, Sparkles, Wallet } from 'lucide-react'
 import { useAppData, useProMode } from '../../lib/store/context'
 import { todayIso } from '../../lib/domain/dates'
-import { availableYears, costStats, dueCosts, fuelLog, kmStats, personName, usageStats } from '../../lib/domain/stats'
+import { availableYears, costStats, dueCosts, fuelLog, kmStats, personName, tripNights, usageStats, validTrips } from '../../lib/domain/stats'
 import { formatDate, formatEuro, formatInt, formatKm, formatPercent, formatPricePerKm } from '../../lib/format'
 import { Button, Card, CardTitle, EmptyState, Notice, PageHeader, Select, Stat } from '../../components/ui'
 import { BarList, ColumnChart, YearCalendar } from '../../components/charts'
 import { Loading } from '../../components/Loading'
 import { ReviewTab } from './ReviewTab'
 import { FuelTab } from './FuelTab'
+import { LeasingCard } from './LeasingCard'
+import { AchievementsTab } from './AchievementsTab'
 
 const MapTab = lazy(() => import('./MapTab').then((m) => ({ default: m.MapTab })))
 
-export type ProTab = 'statistik' | 'tanken' | 'karte' | 'rueckblick'
+export type ProTab = 'statistik' | 'tanken' | 'karte' | 'rueckblick' | 'erfolge'
 
 const TABS: { tab: ProTab; to: string; label: string; short: string; icon: typeof BarChart3 }[] = [
   { tab: 'statistik', to: '/pro', label: 'Statistik', short: 'Statistik', icon: BarChart3 },
   { tab: 'tanken', to: '/pro/tanken', label: 'Tankbuch', short: 'Tanken', icon: Fuel },
   { tab: 'karte', to: '/pro/karte', label: 'Karte & Länder', short: 'Karte', icon: MapIcon },
   { tab: 'rueckblick', to: '/pro/rueckblick', label: 'Jahresrückblick', short: 'Rückblick', icon: PartyPopper },
+  { tab: 'erfolge', to: '/pro/erfolge', label: 'Erfolge', short: 'Erfolge', icon: Trophy },
 ]
 
 const compactKm = (v: number) => (v >= 10_000 ? `${Math.round(v / 1000)}k` : formatInt(v))
@@ -52,22 +55,23 @@ export function ProPage({ tab }: { tab: ProTab }) {
     <>
       <PageHeader title="Entdecken" description="Statistiken, Karte und Rückblick – nur zum Anschauen, die Abrechnung bleibt unverändert." />
       <div className="mb-6 flex flex-wrap items-center gap-3">
-        <nav className="flex gap-1 rounded-xl bg-slate-100 p-1" aria-label="Bereiche">
+        <nav className="-mx-1 flex max-w-full gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1" aria-label="Bereiche">
           {TABS.map((t) => (
             <NavLink key={t.tab} to={t.to} end className={({ isActive }) => clsx('inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium', isActive ? 'bg-surface text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900')}>
               <t.icon className="hidden h-4 w-4 min-[400px]:block" /><span className="hidden sm:inline">{t.label}</span><span className="sm:hidden">{t.short}</span>
             </NavLink>
           ))}
         </nav>
-        <Select value={yearSel} onChange={(e) => setYearSel(e.target.value)} aria-label="Jahr" className="w-auto!">
+        {tab !== 'erfolge' && <Select value={yearSel} onChange={(e) => setYearSel(e.target.value)} aria-label="Jahr" className="w-auto!">
           {tab !== 'rueckblick' && <option value="all">Alle Jahre</option>}
           {years.map((y) => <option key={y} value={y}>{y}</option>)}
-        </Select>
+        </Select>}
       </div>
 
       {tab === 'statistik' && <StatsTab year={year} years={years} today={today} />}
       {tab === 'tanken' && <FuelTab year={year} />}
       {tab === 'karte' && <Suspense fallback={<Loading />}><MapTab year={year} /></Suspense>}
+      {tab === 'erfolge' && <AchievementsTab />}
       {tab === 'rueckblick' && <ReviewTab year={year ?? years[0]} today={today} />}
     </>
   )
@@ -91,6 +95,23 @@ function StatsTab({ year, years, today }: { year: number | null; years: number[]
   const u = useMemo(() => usageStats(data.trips, usageYear, today), [data.trips, usageYear, today])
   const allNights = useMemo(() => (year == null ? years.reduce((a, y) => a + usageStats(data.trips, y, today).nights, 0) : u.nights), [data.trips, year, years, today, u.nights])
   const f = useMemo(() => fuelLog(data.fuel, year), [data.fuel, year])
+  // Vorjahresvergleich – im laufenden Jahr fair nur bis zum gleichen Tag des Vorjahres
+  const prev = useMemo(() => {
+    if (year == null) return null
+    const py = year - 1
+    const cutoff = year === Number(today.slice(0, 4)) ? `${py}${today.slice(4)}` : `${py}-12-31`
+    const inPrev = (d: string) => d.startsWith(String(py)) && d <= cutoff
+    const trips = validTrips(data.trips).filter((t) => inPrev(t.startDate))
+    const kmPrev = trips.reduce((a, t) => a + t.km, 0)
+    const costPrev = costs.filter((x) => inPrev(x.date)).reduce((a, x) => a + x.amountCents, 0)
+    if (kmPrev === 0 && costPrev === 0) return null
+    return { year: py, partial: cutoff.slice(5) !== '12-31', cutoff, km: kmPrev, nights: trips.reduce((a, t) => a + tripNights(t), 0), cost: costPrev }
+  }, [data.trips, costs, year, today])
+  const vs = prev ? ` ggü. ${prev.year}` : ''
+  const pctDelta = (cur: number, before: number) => (before > 0 ? `${cur >= before ? '▲' : '▼'} ${Math.abs(Math.round(((cur - before) / before) * 100))} %${vs}` : undefined)
+  const absDelta = (cur: number, before: number) => `${cur >= before ? '▲' : '▼'} ${Math.abs(cur - before)}${vs}`
+  const perKm = k.km ? c.totalCents / 100 / k.km : null
+  const perKmPrev = prev && prev.km ? prev.cost / 100 / prev.km : null
   const cat = new Map(data.categories.map((x) => [x.id, x]))
   const name = (id: string) => personName(data.persons, id)
   const periodWord = year == null ? 'Jahr' : 'Monat'
@@ -101,12 +122,14 @@ function StatsTab({ year, years, today }: { year: number | null; years: number[]
 
   return (
     <div className="space-y-10">
+      <LeasingCard today={today} />
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Stat label="Kilometer" icon={<Gauge className="h-4 w-4" />} value={formatKm(k.km)} sub={`${formatInt(k.trips)} Fahrten · Ø ${formatKm(Math.round(k.avgKm))}`} />
-        <Stat label="Nächte im Bus" icon={<Moon className="h-4 w-4" />} value={formatInt(allNights)} sub={year != null ? `${u.daysOnRoad} Tage unterwegs` : undefined} />
-        <Stat label="Kosten (fällig)" icon={<Wallet className="h-4 w-4" />} value={formatEuro(c.totalCents)} />
-        <Stat label="Kosten pro km" icon={<RouteIcon className="h-4 w-4" />} value={formatPricePerKm(k.km ? c.totalCents / 100 / k.km : null)} sub="fällige Kosten ÷ km" />
+        <Stat label="Kilometer" icon={<Gauge className="h-4 w-4" />} value={formatKm(k.km)} sub={<>{formatInt(k.trips)} Fahrten · Ø {formatKm(Math.round(k.avgKm))}{prev && <span className="block">{pctDelta(k.km, prev.km)}</span>}</>} />
+        <Stat label="Nächte im Bus" icon={<Moon className="h-4 w-4" />} value={formatInt(allNights)} sub={<>{year != null && `${u.daysOnRoad} Tage unterwegs`}{prev && <span className="block">{absDelta(allNights, prev.nights)}</span>}</>} />
+        <Stat label="Kosten (fällig)" icon={<Wallet className="h-4 w-4" />} value={formatEuro(c.totalCents)} sub={prev ? pctDelta(c.totalCents, prev.cost) : undefined} />
+        <Stat label="Kosten pro km" icon={<RouteIcon className="h-4 w-4" />} value={formatPricePerKm(perKm)} sub={<>fällige Kosten ÷ km{perKm != null && perKmPrev != null && <span className="block">{pctDelta(perKm, perKmPrev)}</span>}</>} />
       </div>
+      {prev?.partial && <p className="-mt-8 text-xs text-slate-500">▲▼ Vergleich mit {prev.year} im gleichen Zeitraum (1. Januar bis {formatDate(prev.cutoff).slice(0, 6)}), damit ein laufendes Jahr fair verglichen wird.</p>}
 
       <Section title="Kilometer" icon={<Gauge className="h-5 w-5 text-brand-700" />}>
         <div className="grid gap-6 lg:grid-cols-3">

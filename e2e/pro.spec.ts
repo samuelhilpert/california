@@ -45,6 +45,33 @@ test('Pro-Modus: Statistik, Karte mit Ländern, Rückblick, Zusatzfelder @mobile
   await expectNoHorizontalOverflow(page)
   await expectAccessible(page, 'Pro-Statistik')
 
+  // Leasing-Kilometer: Vertrag eintragen → Prognose erscheint
+  await page.getByRole('button', { name: 'Vertrag eintragen' }).click()
+  await page.getByLabel('Vertragsbeginn (Übergabe)').fill('2025-12-01')
+  await page.getByLabel('Laufzeit').fill('24')
+  await page.getByLabel('Kilometer pro Jahr').fill('10000')
+  await page.getByRole('button', { name: 'Speichern' }).click()
+  await expect(page.getByText(/Gefahren\s*500 km\s*von 20.000 km/)).toBeVisible()
+  await expect(page.getByText(/Prognose Vertragsende|Am Vertragsende/)).toBeVisible()
+  await expectAccessible(page, 'Leasing')
+
+  // Erfolge: erste Fahrt erreicht
+  await page.goto('/#/pro/erfolge')
+  await expect(page.getByRole('heading', { name: 'Erreicht' })).toBeVisible()
+  await expect(page.getByText('Los geht’s')).toBeVisible()
+  await expectNoHorizontalOverflow(page)
+  await expectAccessible(page, 'Erfolge')
+
+  // Fahrt-Details mit Karte
+  await page.goto('/#/fahrten')
+  await page.getByRole('button', { name: 'Fahrt-Details mit Karte' }).first().click()
+  const detail = page.getByRole('dialog')
+  await expect(detail.getByRole('heading', { name: 'München → Barcelona' })).toBeVisible()
+  await expect(detail.getByRole('region', { name: 'Karte der Strecke' })).toBeVisible()
+  await expect(detail.getByText('Frankreich')).toBeVisible()
+  await expectAccessible(page, 'Fahrt-Details')
+  await page.keyboard.press('Escape')
+
   // Karte: Zwischenstation Lyon zählt mit → drei Länder
   await page.goto('/#/pro/karte')
   await page.getByRole('combobox', { name: 'Jahr' }).selectOption('all')

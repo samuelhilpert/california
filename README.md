@@ -58,6 +58,10 @@ Unter *Einstellungen → Pro-Modus* (je Konto, auf allen Geräten) erscheint der
 - **Statistik:** Kilometer und Kosten je Monat/Jahr, je Person, wer was bezahlt hat, Kosten pro km, Kalender „Wann war der Bus unterwegs?“, Nächte je Person.
 - **Tankbuch:** Tankfüllungen mit Betrag, Litern, Kilometerstand und „voll getankt“; Verbrauch je Tankfüllung nach der Volltank-Methode. Eigene Sammlung `fuel` – **nicht** Teil von Abrechnung und Ausgleich (Sprit zahlt jeder selbst).
 - **Karte & Länder:** eigene Kartengrundlage mit Ländergrenzen, besuchte Länder eingefärbt, Ziele und Zwischenstationen als Punkte; beim Hineinzoomen blendet OpenStreetMap ein. Filter: Auto oder einzelne Person. Klick auf Land oder Ziel zoomt hin.
+- **Leasing-Kilometer:** Vertrag einmal eintragen (Beginn, Laufzeit, km pro Jahr, optional Kilometerstand bei Übergabe und Preise je Mehr-/Minderkilometer) – die App zeigt Verbrauch des Kontingents, Prognose zum Vertragsende und die voraussichtliche Nachzahlung oder Gutschrift.
+- **Vorjahresvergleich** an den Kennzahlen (im laufenden Jahr mit dem gleichen Zeitraum des Vorjahres).
+- **Fahrt-Details** im Fahrtenbuch: kleine Karte mit Start, Zwischenstationen und Ziel, Kosten der Fahrt je Person, Länder.
+- **Erfolge:** Abzeichen für das Auto oder jede Person (Kilometer, Nächte, Länder, lange Touren, Wochenend- und Wintertrips …) mit Datum bzw. Fortschritt.
 - **Jahresrückblick** zum Teilen.
 - Zusatzfeld **Zwischenstationen** bei Fahrten (eine lange Reise bleibt eine Fahrt mit einer Kilometerzahl).
 

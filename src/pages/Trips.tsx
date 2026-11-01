@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
-import { ArrowDownWideNarrow, ArrowUpNarrowWide, Download, Pencil, Plus, Route, Trash2, AlertTriangle } from 'lucide-react'
-import { useAppData } from '../lib/store/context'
+import { lazy, Suspense, useMemo, useState } from 'react'
+import { ArrowDownWideNarrow, ArrowUpNarrowWide, Download, MapPinned, Pencil, Plus, Route, Trash2, AlertTriangle } from 'lucide-react'
+import { useAppData, useProMode } from '../lib/store/context'
 import { deleteTrip, restoreRecord } from '../lib/store/repo'
 import { findOdometerIssues } from '../lib/domain/tripChecks'
 import { validateTripForCalc } from '../lib/domain/settlement'
@@ -14,9 +14,14 @@ import { collectYears } from '../lib/years'
 import { errorMessage, useFeedback } from '../components/feedback-context'
 import { todayIso } from '../lib/domain/dates'
 
+// Pro-Modus: Detailansicht mit Karte (lädt die Kartenbibliothek erst bei Bedarf)
+const TripDetailModal = lazy(() => import('./pro/TripDetail').then((m) => ({ default: m.TripDetailModal })))
+
 export function TripsPage() {
   const data = useAppData()
   const { confirm, toast } = useFeedback()
+  const [pro] = useProMode()
+  const [detail, setDetail] = useState<Trip | null>(null)
   const [query, setQuery] = useState('')
   const [personFilter, setPersonFilter] = useState('')
   const [year, setYear] = useState('')
@@ -212,6 +217,7 @@ export function TripsPage() {
                           <div className="flex flex-wrap gap-1">{t.personIds.map((id) => <Badge key={id}>{pName.get(id) ?? 'Unbekannt'}</Badge>)}</div>
                         </td>
                         <td className="whitespace-nowrap px-2 py-2 text-right align-top">
+                          {pro && <Button variant="ghost" size="icon" onClick={() => setDetail(t)} aria-label="Fahrt-Details mit Karte" title="Details & Karte"><MapPinned className="h-4 w-4" /></Button>}
                           <Button variant="ghost" size="icon" onClick={() => openEdit(t)} aria-label="Fahrt bearbeiten" title="Bearbeiten"><Pencil className="h-4 w-4" /></Button>
                           <Button variant="danger-ghost" size="icon" onClick={() => void remove(t)} aria-label="Fahrt löschen" title="Löschen"><Trash2 className="h-4 w-4" /></Button>
                         </td>
@@ -242,6 +248,7 @@ export function TripsPage() {
                     {t.note && <div className="mt-1.5 text-xs text-slate-500">{t.note}</div>}
                   </div>
                   <div className="flex flex-col">
+                    {pro && <Button variant="ghost" size="icon" onClick={() => setDetail(t)} aria-label="Fahrt-Details mit Karte"><MapPinned className="h-4 w-4" /></Button>}
                     <Button variant="ghost" size="icon" onClick={() => openEdit(t)} aria-label="Fahrt bearbeiten"><Pencil className="h-4 w-4" /></Button>
                     <Button variant="danger-ghost" size="icon" onClick={() => void remove(t)} aria-label="Fahrt löschen"><Trash2 className="h-4 w-4" /></Button>
                   </div>
@@ -253,6 +260,7 @@ export function TripsPage() {
       </Card>
 
       <TripFormModal open={formOpen} onClose={() => setFormOpen(false)} trip={editing} prefill={prefill} persons={data.persons} trips={data.trips} settlements={data.settlements} />
+      {detail && <Suspense fallback={null}><TripDetailModal trip={detail} onClose={() => setDetail(null)} /></Suspense>}
     </>
   )
 }
