@@ -24,6 +24,13 @@ describe('Leasing-Kilometer', () => {
     expect(s.remainingPerMonth).toBeGreaterThan(700)
   })
 
+  it('am Anfang keine wilde Hochrechnung: Restzeit mit vereinbartem Tempo', () => {
+    // 1 Tag nach Beginn 100 km gefahren → nicht 73.000 km, sondern knapp über dem Kontingent
+    const s = leasingStatus({ ...cfg, start: '2026-11-01' }, [trip('1', '2026-11-01', 100, ['a'])], [], '2026-11-02')
+    expect(s.prognosisKm).toBeGreaterThan(20_000)
+    expect(s.prognosisKm).toBeLessThan(20_500)
+  })
+
   it('nutzt den Tachostand, wenn der Übergabe-Stand bekannt ist (auch aus dem Tankbuch)', () => {
     const fuel: FuelFill[] = [{ id: 'f', date: '2026-06-01', odometer: 13_000, fullTank: true, amountCents: 9000, createdAt: at, updatedAt: at }]
     const s = leasingStatus({ ...cfg, startOdometer: 10_000 }, [trip('1', '2026-02-01', 500, ['a'], { odoStart: 10_000, odoEnd: 10_500 })], fuel, '2026-07-01')
@@ -48,6 +55,17 @@ describe('Leasing-Toleranz', () => {
   it('innerhalb der Toleranz: nichts abzurechnen', () => {
     const s = leasingStatus(cfg, [], fuelAt(12_000), '2027-02-01')
     expect(s).toMatchObject({ deltaKm: 2000, withinTolerance: true, billableKm: 0, costCents: 0 })
+  })
+  it('Stand heute: gegen das anteilige Kontingent, Toleranz anteilig', () => {
+    // Nach der Hälfte (Tag 182 von 365): anteilig ≈ 4.986 km, gefahren 7.000 → ≈ +2.014 km;
+    // anteilige Toleranz ≈ 1.247 km → ≈ 767 km abzurechnen à 10 Cent
+    const s = leasingStatus(cfg, [], [{ id: 'f', date: '2026-07-01', odometer: 7000, fullTank: true, amountCents: 1, createdAt: at, updatedAt: at }], '2026-07-02')
+    expect(s.current.deltaKm).toBeGreaterThan(2000)
+    expect(s.current.deltaKm).toBeLessThan(2030)
+    expect(s.current.billableKm).toBeGreaterThan(750)
+    expect(s.current.billableKm).toBeLessThan(790)
+    expect(s.current.costCents).toBe(s.current.billableKm * 10)
+    expect(s.current.withinTolerance).toBe(false)
   })
   it('darüber: nur der Teil jenseits der Toleranz', () => {
     const s = leasingStatus(cfg, [], fuelAt(13_000), '2027-02-01')

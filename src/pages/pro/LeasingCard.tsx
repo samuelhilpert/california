@@ -2,7 +2,7 @@ import { clsx } from 'clsx'
 import { useState } from 'react'
 import { AlertTriangle, CheckCircle2, FileSignature, Pencil } from 'lucide-react'
 import { useAppData, useSetting } from '../../lib/store/context'
-import { LEASING_SETTING, leasingStatus, type LeasingConfig } from '../../lib/domain/leasing'
+import { EARLY_DAYS, LEASING_SETTING, leasingStatus, type LeasingConfig } from '../../lib/domain/leasing'
 import { parseNumberInput } from '../../lib/domain/money'
 import { setSetting } from '../../lib/store/repo'
 import { formatDate, formatEuro, formatInt, numberToInput } from '../../lib/format'
@@ -109,6 +109,11 @@ export function LeasingCard({ today }: { today: string }) {
       </div>
       {!s.finished && <p className="mt-1.5 text-xs text-slate-500">Strich = bis heute anteilig vorgesehen ({km(s.expectedToDate)})</p>}
 
+      {!s.finished && s.daysElapsed < EARLY_DAYS && (
+        <p className="mt-3 rounded-lg bg-accent-50 px-3 py-2 text-xs text-accent-700">
+          Der Vertrag läuft erst seit {s.daysElapsed} {s.daysElapsed === 1 ? 'Tag' : 'Tagen'} – Prognose und „Stand heute“ sind noch wenig aussagekräftig.
+        </p>
+      )}
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
         <div className="rounded-lg bg-slate-50 p-3">
           <div className="text-xs text-slate-500">{s.finished ? 'Am Vertragsende' : 'Prognose Vertragsende'}</div>
@@ -124,10 +129,11 @@ export function LeasingCard({ today }: { today: string }) {
           ) : null}
         </div>
         <div className="rounded-lg bg-slate-50 p-3">
-          <div className="text-xs text-slate-500">{s.withinTolerance ? 'Voraussichtlich' : over ? 'Voraussichtliche Nachzahlung' : 'Voraussichtliche Gutschrift'}</div>
-          <div className="text-lg font-semibold text-slate-900">{s.withinTolerance ? 'nichts abzurechnen' : s.costCents != null ? formatEuro(Math.abs(s.costCents)) : '–'}</div>
-          <div className="mt-0.5 text-xs text-slate-500">
-            {s.withinTolerance ? `Abweichung liegt in der Toleranz von ± ${km(cfg.toleranceKm ?? 0)}` : s.costCents != null ? (cfg.toleranceKm ? 'laut Vertrag, nach Abzug der Toleranz' : 'laut Preis im Vertrag') : 'Preis je km im Vertrag eintragen'}
+          <div className="text-xs font-medium text-slate-700">Nachzahlung / Gutschrift</div>
+          {!s.finished && <Settle label="Stand heute" cost={s.current.costCents} within={s.current.withinTolerance} delta={s.current.deltaKm} hasPrices={cfg.extraKmCents != null || cfg.lessKmCents != null} />}
+          <Settle label={s.finished ? 'Vertragsende' : 'Prognose zum Vertragsende'} cost={s.costCents} within={s.withinTolerance} delta={s.deltaKm} hasPrices={cfg.extraKmCents != null || cfg.lessKmCents != null} />
+          <div className="mt-1 text-xs text-slate-500">
+            {cfg.extraKmCents == null && cfg.lessKmCents == null ? 'Preis je km im Vertrag eintragen' : cfg.toleranceKm ? 'laut Vertrag, nach Abzug der Toleranz' : 'laut Preis im Vertrag'}
           </div>
         </div>
         <div className="rounded-lg bg-slate-50 p-3">
@@ -140,9 +146,20 @@ export function LeasingCard({ today }: { today: string }) {
         {s.source === 'odometer' && s.lastReading
           ? `Grundlage: Tachostand ${km(s.lastReading.km)} vom ${formatDate(s.lastReading.date)} minus Übergabe-Stand.`
           : 'Grundlage: Summe der eingetragenen Fahrten seit Vertragsbeginn – mit dem Kilometerstand bei Übergabe wird es genauer.'}
-        {' '}Die Prognose rechnet das bisherige Tempo gleichmäßig hoch.
+        {' '}Die Prognose rechnet für die Restzeit mit eurem bisherigen Tempo; in den ersten Monaten zählt dabei überwiegend das vereinbarte Tempo, damit einzelne Fahrten nichts verzerren.
       </p>
       {editing && <LeasingForm initial={cfg} onClose={() => setEditing(false)} />}
     </Card>
+  )
+}
+
+/** Eine Zeile „Nachzahlung“ (+) bzw. „Gutschrift“ (−) oder „nichts abzurechnen“. */
+function Settle({ label, cost, within, delta, hasPrices }: { label: string; cost: number | null; within: boolean; delta: number; hasPrices: boolean }) {
+  const text = within || delta === 0 ? 'nichts abzurechnen' : !hasPrices || cost == null ? (delta > 0 ? 'Nachzahlung' : 'Gutschrift') : cost > 0 ? `${formatEuro(cost)} Nachzahlung` : cost < 0 ? `${formatEuro(-cost)} Gutschrift` : 'nichts abzurechnen'
+  return (
+    <div className="mt-1.5">
+      <div className="text-xs text-slate-500">{label}</div>
+      <div className={clsx('tabular font-semibold', cost != null && cost > 0 && !within ? 'text-amber-700' : 'text-slate-900')}>{text}</div>
+    </div>
   )
 }

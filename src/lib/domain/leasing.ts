@@ -27,6 +27,10 @@ export interface LeasingConfig {
 }
 
 export const LEASING_SETTING = 'leasing'
+/** Ab so vielen Tagen zählt für die Prognose nur noch das tatsächliche Tempo. */
+const RAMP_DAYS = 180
+/** Bis dahin ist die Prognose noch wenig aussagekräftig (Hinweis in der Anzeige). */
+export const EARLY_DAYS = 90
 
 export interface LeasingStatus {
   end: IsoDate
@@ -48,6 +52,11 @@ export interface LeasingStatus {
   billableKm: number
   /** Voraussichtliche Nachzahlung (positiv) bzw. Gutschrift (negativ) in Cent, falls Preise hinterlegt. */
   costCents: number | null
+  /**
+   * Stand heute: Abweichung vom anteiligen Kontingent bis heute (Toleranz ebenfalls anteilig) –
+   * „was wäre, wenn heute abgerechnet würde“.
+   */
+  current: { deltaKm: number; billableKm: number; withinTolerance: boolean; costCents: number | null }
   /** Noch verfügbare km bis Vertragsende und je verbleibendem Monat. */
   remainingKm: number
   remainingPerMonth: number | null
@@ -78,11 +87,30 @@ export function leasingStatus(cfg: LeasingConfig, trips: Trip[], fuel: FuelFill[
   const drivenKm = useOdo ? lastReading.km - (cfg.startOdometer as number) : tripKm
 
   const expectedToDate = (limitKm * daysElapsed) / daysTotal
-  const prognosisKm = finished || daysElapsed === 0 ? drivenKm : (drivenKm / daysElapsed) * daysTotal
+  // Prognose: Anfangs zählt für die Restzeit das vereinbarte Tempo, mit der Zeit immer stärker das
+  // tatsächliche (nach 180 Tagen nur noch dieses). Sonst würde z. B. eine einzige Fahrt am ersten
+  // Tag auf die ganze Laufzeit hochgerechnet.
+  const plannedRate = limitKm / daysTotal
+  const actualRate = daysElapsed > 0 ? drivenKm / daysElapsed : plannedRate
+  const weight = Math.min(1, daysElapsed / RAMP_DAYS)
+  const rate = weight * actualRate + (1 - weight) * plannedRate
+  const prognosisKm = finished ? drivenKm : drivenKm + rate * (daysTotal - daysElapsed)
   const deltaKm = Math.round(prognosisKm - limitKm)
   const tolerance = Math.max(0, cfg.toleranceKm ?? 0)
   const billableKm = Math.sign(deltaKm) * Math.max(0, Math.abs(deltaKm) - tolerance)
   const price = deltaKm > 0 ? cfg.extraKmCents : cfg.lessKmCents
+  // Stand heute: gegen das anteilige Kontingent, Toleranz anteilig
+  const share = daysElapsed / daysTotal
+  const curDelta = Math.round(drivenKm - expectedToDate)
+  const curTol = tolerance * share
+  const curBillable = Math.sign(curDelta) * Math.round(Math.max(0, Math.abs(curDelta) - curTol))
+  const curPrice = curDelta > 0 ? cfg.extraKmCents : cfg.lessKmCents
+  const current = {
+    deltaKm: curDelta,
+    billableKm: curBillable,
+    withinTolerance: tolerance > 0 && curBillable === 0,
+    costCents: curPrice != null && curDelta !== 0 ? Math.round(curBillable * curPrice) : null,
+  }
   const remainingKm = Math.round(limitKm - drivenKm)
   const monthsLeft = (daysTotal - daysElapsed) / (365.25 / 12)
   return {
@@ -99,6 +127,7 @@ export function leasingStatus(cfg: LeasingConfig, trips: Trip[], fuel: FuelFill[
     withinTolerance: tolerance > 0 && billableKm === 0,
     billableKm,
     costCents: price != null && deltaKm !== 0 ? Math.round(billableKm * price) : null,
+    current,
     remainingKm,
     remainingPerMonth: monthsLeft >= 0.5 ? Math.round(remainingKm / monthsLeft) : null,
     finished,
