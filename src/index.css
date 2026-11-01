@@ -22,6 +22,11 @@
   --color-heat-2: #2dd4bf;
   --color-heat-3: #0d9488;
   --color-heat-4: #115e59;
+
+  /* Karte (Pro-Modus) */
+  --color-map-sea: #dce8f0;
+  --color-map-land: #f8fafc;
+  --color-map-border: #b6c2cf;
 }
 
 /*
@@ -63,6 +68,10 @@
   --color-heat-3: #0fa596;
   --color-heat-4: #5eead4;
 
+  --color-map-sea: #0b1424;
+  --color-map-land: #1c2738;
+  --color-map-border: #3a4659;
+
   --color-amber-50: #2a1f0a;
   --color-amber-200: #5c4310;
   --color-amber-600: #f59e0b;
@@ -101,6 +110,10 @@
 }
 
 .trip-map.leaflet-container { font: inherit; }
-/* Grundkarte zurücknehmen, damit Grenzen und besuchte Länder hervortreten */
-.trip-map .leaflet-tile-pane { filter: grayscale(1) contrast(0.85) brightness(1.08); }
-:root.dark .trip-map .leaflet-tile-pane { filter: grayscale(1) invert(1) brightness(0.75) contrast(0.9); }
+/* Eigene Kartengrundlage: Meer als Hintergrund; Detailkacheln (erst beim Hineinzoomen) in Grautönen */
+.trip-map.leaflet-container { background: var(--color-map-sea); }
+.trip-map .leaflet-tile-pane { filter: grayscale(1) contrast(0.85) brightness(1.08); opacity: 0.85; }
+:root.dark .trip-map .leaflet-tile-pane { filter: grayscale(1) invert(1) brightness(0.7) contrast(0.9); }
+.trip-map .leaflet-interactive:focus { outline: none; }
+.trip-map-fit { display: flex; width: 34px; height: 34px; align-items: center; justify-content: center; background: #fff; color: #1e293b; cursor: pointer; }
+.trip-map-fit:hover { background: #f4f4f4; }

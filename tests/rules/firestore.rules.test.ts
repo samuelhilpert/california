@@ -33,6 +33,11 @@ describe('Firestore-Regeln', () => {
     await assertSucceeds(getDocs(collection(db, BOOK, 'trips')))
     await assertSucceeds(setDoc(doc(db, BOOK, 'trips', 't2'), { id: 't2', km: 5 }))
     await assertSucceeds(deleteDoc(doc(db, BOOK, 'trips', 't1')))
+    // Tankbuch (Pro-Modus) ist eine eigene Sammlung
+    await assertSucceeds(setDoc(doc(db, BOOK, 'fuel', 'f1'), { id: 'f1', amountCents: 9000 }))
+    await assertSucceeds(getDocs(collection(db, BOOK, 'fuel')))
+    // Unbekannte Sammlungen bleiben gesperrt
+    await assertFails(setDoc(doc(db, BOOK, 'sonstiges', 'x'), { id: 'x' }))
   })
   it('E-Mail-Groß-/Kleinschreibung spielt keine Rolle', async () => {
     await assertSucceeds(getDoc(doc(user('Ben@Example.com'), BOOK, 'trips', 't1')))

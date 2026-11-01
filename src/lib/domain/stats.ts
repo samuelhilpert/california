@@ -2,12 +2,10 @@
  * Auswertungen für den Pro-Modus. Reine Funktionen ohne UI/DB – sie lesen nur und
  * verändern nichts an der Abrechnung.
  */
-import type { CostEntry, Expense, IsoDate, Person, Trip } from './types'
+import type { CostEntry, Expense, FuelFill, IsoDate, Person, Trip } from './types'
 import { validateTripForCalc, type SettlementInput } from './settlement'
 import { expandExpenses } from './recurrence'
 import { daysInMonth, parseIso, toIso } from './dates'
-
-export const FUEL_CATEGORY = 'fuel'
 
 /** Fahrten, die auch in der Abrechnung zählen. */
 export function validTrips(trips: Trip[]): Trip[] {
@@ -194,35 +192,80 @@ export function usageStats(trips: Trip[], year: number, today: IsoDate): UsageSt
   }
 }
 
-export interface FuelStats {
-  fillUps: number
-  withLiters: number
-  liters: number
-  /** Kosten der Tankfüllungen mit Literangabe. */
-  cents: number
-  avgPricePerLiter: number | null
-  /** Liter je 100 km über alle Fahrten des Zeitraums – nur sinnvoll, wenn (fast) alle Tankfüllungen Liter haben. */
+export interface FuelEntry {
+  fill: FuelFill
+  pricePerLiter: number | null
+  /** Gefahrene km seit der vorigen Tankfüllung mit Kilometerstand. */
+  kmSincePrev: number | null
+  /** Verbrauch nach der Volltank-Methode – nur bei Volltankung mit vollständigen Angaben seit der letzten. */
   per100km: number | null
-  /** Preis je Liter pro Tankfüllung, zeitlich sortiert. */
-  prices: { date: IsoDate; pricePerLiter: number; liters: number }[]
 }
 
-export function fuelStats(expenses: Expense[], trips: Trip[], year: number | null): FuelStats {
-  const fuel = expenses.filter((e) => e.categoryId === FUEL_CATEGORY && !e.recurrence && inYear(e.date, year))
-  const withL = fuel.filter((e) => e.liters != null && e.liters > 0)
+export interface FuelLog {
+  /** Neueste zuerst. */
+  entries: FuelEntry[]
+  liters: number
+  cents: number
+  avgPricePerLiter: number | null
+  /** Ø-Verbrauch von der ersten bis zur letzten Volltankung. */
+  avgPer100km: number | null
+  /** Hinweis, warum (noch) kein Verbrauch berechnet werden kann. */
+  hint?: string
+}
+
+/**
+ * Tankbuch mit Volltank-Methode: Bei jeder Volltankung ist der Verbrauch = alle seit der letzten
+ * Volltankung getankten Liter (inkl. dieser) ÷ gefahrene km seitdem. Teilfüllungen zählen in die
+ * nächste Volltankung mit.
+ */
+export function fuelLog(fills: FuelFill[], year: number | null = null): FuelLog {
+  const byOdo = fills.filter((e) => e.odometer != null).sort((a, b) => a.odometer! - b.odometer! || (a.date < b.date ? -1 : 1))
+  const per100 = new Map<string, number | null>()
+  const kmPrev = new Map<string, number | null>()
+  let prevOdo: number | null = null
+  let lastFull: number | null = null
+  let acc = 0
+  let accOk = true
+  // Für den Durchschnitt nur Strecken mit vollständigen Literangaben
+  let litersBetween = 0
+  let kmBetween = 0
+  for (const e of byOdo) {
+    kmPrev.set(e.id, prevOdo == null ? null : e.odometer! - prevOdo)
+    prevOdo = e.odometer!
+    if (lastFull != null) {
+      if (e.liters == null) accOk = false
+      else acc += e.liters
+    }
+    if (e.fullTank) {
+      const km = lastFull != null ? e.odometer! - lastFull : 0
+      per100.set(e.id, lastFull != null && accOk && km > 0 ? (acc / km) * 100 : null)
+      if (lastFull != null && accOk && km > 0) {
+        litersBetween += acc
+        kmBetween += km
+      }
+      lastFull = e.odometer!
+      acc = 0
+      accOk = true
+    }
+  }
+  const inYearFills = fills.filter((e) => inYear(e.date, year))
+  const withL = inYearFills.filter((e) => e.liters)
   const liters = withL.reduce((a, e) => a + (e.liters ?? 0), 0)
   const cents = withL.reduce((a, e) => a + e.amountCents, 0)
-  const km = validTrips(trips).filter((t) => inYear(t.startDate, year)).reduce((a, t) => a + t.km, 0)
+  const entries = inYearFills
+    .map((e) => ({ fill: e, pricePerLiter: e.liters ? e.amountCents / 100 / e.liters : null, kmSincePrev: kmPrev.get(e.id) ?? null, per100km: per100.get(e.id) ?? null }))
+    .sort((a, b) => (a.fill.date !== b.fill.date ? (a.fill.date < b.fill.date ? 1 : -1) : (b.fill.odometer ?? 0) - (a.fill.odometer ?? 0)))
+  const fullCount = byOdo.filter((e) => e.fullTank).length
   return {
-    fillUps: fuel.length,
-    withLiters: withL.length,
+    entries,
     liters,
     cents,
     avgPricePerLiter: liters ? cents / 100 / liters : null,
-    per100km: liters && km ? (liters / km) * 100 : null,
-    prices: withL
-      .map((e) => ({ date: e.date, pricePerLiter: e.amountCents / 100 / (e.liters ?? 1), liters: e.liters ?? 0 }))
-      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)),
+    avgPer100km: kmBetween > 0 ? (litersBetween / kmBetween) * 100 : null,
+    hint:
+      fills.length === 0 ? 'Noch keine Tankfüllungen.'
+      : fullCount < 2 ? 'Für den Verbrauch braucht es mindestens zwei Volltankungen mit Kilometerstand.'
+      : undefined,
   }
 }
 

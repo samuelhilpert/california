@@ -41,7 +41,6 @@ const expenseSchema = z.object({
     .optional(),
   spreadMonths: z.number().int().min(1).max(120).optional(),
   paidBy: z.string().optional(),
-  liters: z.number().finite().positive().optional(),
   note: z.string().optional(),
   importKey: z.string().optional(),
   createdAt: stamp,
@@ -78,6 +77,19 @@ const settlementSchema = z.object({
   updatedAt: stamp,
 })
 const settingSchema = z.object({ id: z.string(), value: z.unknown() })
+const fuelSchema = z.object({
+  id: z.string().min(1),
+  date: isoDate,
+  personId: z.string().optional(),
+  amountCents: z.number().int().nonnegative(),
+  liters: z.number().finite().positive().optional(),
+  odometer: z.number().finite().nonnegative().optional(),
+  fullTank: z.boolean(),
+  note: z.string().optional(),
+  createdAt: stamp,
+  updatedAt: stamp,
+  updatedBy: z.string().optional(),
+})
 
 const dataSchema = z.object({
   persons: z.array(personSchema),
@@ -87,6 +99,7 @@ const dataSchema = z.object({
   payments: z.array(paymentSchema).default([]),
   settlements: z.array(settlementSchema).default([]),
   settings: z.array(settingSchema).default([]),
+  fuel: z.array(fuelSchema).default([]),
 })
 
 export interface BackupFile {
@@ -159,6 +172,9 @@ function checkReferences(d: AppData) {
   for (const p of d.payments) {
     if (!personIds.has(p.fromPersonId) || !personIds.has(p.toPersonId)) throw new BackupError(`Zahlung vom ${p.date} verweist auf eine unbekannte Person.`)
   }
+  for (const f of d.fuel) {
+    if (f.personId && !personIds.has(f.personId)) throw new BackupError(`Tankfüllung vom ${f.date} verweist auf eine unbekannte Person.`)
+  }
   for (const table of TABLES) {
     const list = d[table] as { id: string }[]
     if (new Set(list.map((x) => x.id)).size !== list.length) throw new BackupError(`Die Sicherung enthält doppelte IDs (${table}).`)
@@ -227,6 +243,7 @@ export function planMerge(current: AppData, backup: BackupFile): RestorePlan {
       ...(e.paidBy ? { paidBy: mapP(e.paidBy) } : {}),
     })),
     payments: backup.data.payments.map((p) => ({ ...p, fromPersonId: mapP(p.fromPersonId), toPersonId: mapP(p.toPersonId) })),
+    fuel: backup.data.fuel.map((f) => (f.personId ? { ...f, personId: mapP(f.personId) } : f)),
   }
   for (const table of TABLES) {
     const cur = new Map((current[table] as { id: string }[]).map((x) => [x.id, x]))

@@ -55,12 +55,13 @@ npx firebase deploy --only hosting,firestore:rules,firestore:indexes
 
 Unter *Einstellungen → Pro-Modus* (je Konto, auf allen Geräten) erscheint der Bereich **Entdecken**:
 
-- **Statistik:** Kilometer und Kosten je Monat/Jahr, je Person, wer was bezahlt hat, Kosten pro km, Kalender „Wann war der Bus unterwegs?“, Nächte je Person, Verbrauch und Spritpreis.
-- **Karte & Länder:** alle Ziele und Zwischenstationen, besuchte Länder eingefärbt, filterbar nach Jahr und Person.
+- **Statistik:** Kilometer und Kosten je Monat/Jahr, je Person, wer was bezahlt hat, Kosten pro km, Kalender „Wann war der Bus unterwegs?“, Nächte je Person.
+- **Tankbuch:** Tankfüllungen mit Betrag, Litern, Kilometerstand und „voll getankt“; Verbrauch je Tankfüllung nach der Volltank-Methode. Eigene Sammlung `fuel` – **nicht** Teil von Abrechnung und Ausgleich (Sprit zahlt jeder selbst).
+- **Karte & Länder:** eigene Kartengrundlage mit Ländergrenzen, besuchte Länder eingefärbt, Ziele und Zwischenstationen als Punkte; beim Hineinzoomen blendet OpenStreetMap ein. Filter: Auto oder einzelne Person. Klick auf Land oder Ziel zoomt hin.
 - **Jahresrückblick** zum Teilen.
-- Zusatzfelder: **Zwischenstationen** bei Fahrten (eine lange Reise bleibt eine Fahrt mit einer Kilometerzahl) und **Liter** bei Tankfüllungen.
+- Zusatzfeld **Zwischenstationen** bei Fahrten (eine lange Reise bleibt eine Fahrt mit einer Kilometerzahl).
 
-Der Pro-Modus ändert nie die Abrechnung – alle sehen dieselben Zahlen. Orte werden über OpenStreetMap (Nominatim) gesucht und je Gerät im Browser zwischengespeichert; Kartenkacheln von OpenStreetMap, Ländergrenzen von Natural Earth (`public/geo/laender.json`, gemeinfrei).
+Der Pro-Modus ändert nie die Abrechnung – alle sehen dieselben Zahlen. Orte werden über OpenStreetMap (Nominatim) gesucht und je Gerät im Browser zwischengespeichert. Ländergrenzen: Natural Earth 1:50 Mio. (gemeinfrei), vereinfacht in `public/geo/laender.json`.
 
 ---
 

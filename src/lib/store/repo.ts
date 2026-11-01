@@ -3,8 +3,8 @@
  * und schreibt per `commit()`. Standardmäßig wird der aktive (angemeldete) Speicher verwendet; Tests
  * übergeben einen eigenen.
  */
-import type { Category, Expense, Payment, Person, SettlementSnapshot, Trip } from '../domain/types'
-import { hasErrors, validateExpense, validatePayment, validateTrip, type ExpenseDraft, type PaymentDraft, type TripDraft } from '../domain/validation'
+import type { Category, Expense, FuelFill, Payment, Person, SettlementSnapshot, Trip } from '../domain/types'
+import { hasErrors, validateExpense, validateFuel, validatePayment, validateTrip, type ExpenseDraft, type FuelDraft, type PaymentDraft, type TripDraft } from '../domain/validation'
 import { activeStore, activeUserEmail } from './active'
 import { putOp, type DataStore, type TableName } from './types'
 
@@ -123,7 +123,7 @@ export function personUsage(id: string, store: DataStore = activeStore()): { tri
   return {
     trips: d.trips.filter((t) => t.personIds.includes(id)).length,
     expenses: d.expenses.filter((e) => e.directPersonIds?.includes(id) || e.paidBy === id).length,
-    payments: d.payments.filter((p) => p.fromPersonId === id || p.toPersonId === id).length,
+    payments: d.payments.filter((p) => p.fromPersonId === id || p.toPersonId === id).length + d.fuel.filter((f) => f.personId === id).length,
   }
 }
 
@@ -264,6 +264,25 @@ export async function deleteCategory(id: string, store: DataStore = activeStore(
 }
 
 // ---------- Einstellungen (gemeinsam für alle Mitglieder) ----------
+// ---------- Tankbuch (Pro-Modus, nicht Teil der Abrechnung) ----------
+export async function saveFuel(draft: FuelDraft, id?: string, store: DataStore = activeStore()): Promise<FuelFill> {
+  const d = clean(draft)
+  const errors = validateFuel(d)
+  if (hasErrors(errors)) throw new ValidationError(errors)
+  const now = nowStamp()
+  const old = id ? store.getData().fuel.find((x) => x.id === id) : undefined
+  if (id && !old) throw new Error('Die Tankfüllung existiert nicht mehr – sie wurde vermutlich von einer anderen Person gelöscht.')
+  const f: FuelFill = { ...d, id: id ?? newId(), createdAt: old?.createdAt ?? now, updatedAt: now, ...by() }
+  await store.commit([{ type: 'put', table: 'fuel', value: f }])
+  return f
+}
+
+export async function deleteFuel(id: string, store: DataStore = activeStore()): Promise<FuelFill | undefined> {
+  const old = store.getData().fuel.find((x) => x.id === id)
+  await store.commit([{ type: 'delete', table: 'fuel', id }])
+  return old
+}
+
 export async function setSetting(key: string, value: unknown, store: DataStore = activeStore()): Promise<void> {
   await store.commit([{ type: 'put', table: 'settings', value: { id: key, value } }])
 }

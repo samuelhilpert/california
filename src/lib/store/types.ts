@@ -1,4 +1,4 @@
-import type { Category, Expense, Payment, Person, Setting, SettlementSnapshot, Trip } from '../domain/types'
+import type { Category, Expense, Payment, Person, Setting, SettlementSnapshot, Trip, FuelFill } from '../domain/types'
 
 export interface AppData {
   persons: Person[]
@@ -8,10 +8,12 @@ export interface AppData {
   payments: Payment[]
   settlements: SettlementSnapshot[]
   settings: Setting[]
+  /** Tankbuch (Pro-Modus) – getrennt von den Ausgaben. */
+  fuel: FuelFill[]
 }
 
 export type TableName = keyof AppData
-export const TABLES: TableName[] = ['persons', 'trips', 'expenses', 'categories', 'payments', 'settlements', 'settings']
+export const TABLES: TableName[] = ['persons', 'trips', 'expenses', 'categories', 'payments', 'settlements', 'settings', 'fuel']
 
 /** Schreiboperation; bei „put“ ist der Datensatztyp an die Tabelle gebunden. */
 export type PutOp = { [T in TableName]: { type: 'put'; table: T; value: AppData[T][number] } }[TableName]
@@ -50,5 +52,5 @@ export interface DataStore {
 }
 
 export function emptyData(): AppData {
-  return { persons: [], trips: [], expenses: [], categories: [], payments: [], settlements: [], settings: [] }
+  return { persons: [], trips: [], expenses: [], categories: [], payments: [], settlements: [], settings: [], fuel: [] }
 }

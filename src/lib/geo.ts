@@ -5,7 +5,7 @@
  * zwischenspeichern. Daher fragt jedes Gerät jeden Ort nur einmal ab und merkt sich das
  * Ergebnis im Browser. Nicht gefundene Orte werden ebenfalls gemerkt (eine Woche lang).
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 export interface Place {
   lat: number
@@ -103,12 +103,16 @@ export function useGeocode(names: string[]): { places: Map<string, Place | null>
     return () => { alive = false }
   }, [sig])
 
-  const places = new Map<string, Place | null>()
-  for (const key of unique) {
-    const c = readCache(key)
-    if (c) places.set(key, c.place)
-    else if (fetched.has(key)) places.set(key, fetched.get(key) ?? null)
-  }
+  // Stabil halten, solange sich nichts ändert – sonst zeichnen Karte und Listen bei jedem Rendern neu
+  const places = useMemo(() => {
+    const m = new Map<string, Place | null>()
+    for (const key of sig ? sig.split('|') : []) {
+      const c = readCache(key)
+      if (c) m.set(key, c.place)
+      else if (fetched.has(key)) m.set(key, fetched.get(key) ?? null)
+    }
+    return m
+  }, [sig, fetched])
   return { places, pending: unique.length - places.size, failed }
 }
 

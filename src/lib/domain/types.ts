@@ -80,10 +80,29 @@ export interface Expense {
   spreadMonths?: number
   /** Person, die die Kosten bezahlt hat (für den Ausgleich). Leer = unbekannt/gemeinsames Konto. */
   paidBy?: string
-  /** Getankte Liter (nur Statistik, z. B. Verbrauch). Ohne Einfluss auf die Abrechnung. */
-  liters?: number
   note?: string
   importKey?: string
+  createdAt: string
+  updatedAt: string
+  updatedBy?: string
+}
+
+/**
+ * Tankbuch (Pro-Modus): eine Tankfüllung. Bewusst KEINE Ausgabe – Sprit zahlt jeder selbst,
+ * Tankfüllungen fließen nie in Abrechnung oder Ausgleich ein.
+ */
+export interface FuelFill {
+  id: string
+  date: IsoDate
+  /** Wer getankt (und bezahlt) hat. */
+  personId?: string
+  amountCents: number
+  liters?: number
+  /** Kilometerstand beim Tanken. */
+  odometer?: number
+  /** Bis zum Rand vollgetankt – Grundlage der Verbrauchsberechnung. */
+  fullTank: boolean
+  note?: string
   createdAt: string
   updatedAt: string
   updatedBy?: string

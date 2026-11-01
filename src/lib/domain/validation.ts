@@ -1,10 +1,20 @@
 import { isIsoDate } from './dates'
-import type { Expense, Trip } from './types'
+import type { Expense, FuelFill, Trip } from './types'
 
 export type FieldErrors = Record<string, string>
 
 export type TripDraft = Omit<Trip, 'id' | 'createdAt' | 'updatedAt'>
 export type ExpenseDraft = Omit<Expense, 'id' | 'createdAt' | 'updatedAt'>
+export type FuelDraft = Omit<FuelFill, 'id' | 'createdAt' | 'updatedAt'>
+
+export function validateFuel(d: Partial<FuelDraft>): FieldErrors {
+  const e: FieldErrors = {}
+  if (!d.date || !isIsoDate(d.date)) e.date = 'Bitte ein gültiges Datum angeben.'
+  if (d.amountCents == null || !Number.isInteger(d.amountCents) || d.amountCents <= 0) e.amountCents = 'Bitte den Betrag eingeben, z. B. 89,90.'
+  if (d.liters != null && (!Number.isFinite(d.liters) || d.liters <= 0 || d.liters > 1000)) e.liters = 'Bitte eine Literzahl zwischen 0 und 1.000 angeben.'
+  if (d.odometer != null && (!Number.isFinite(d.odometer) || d.odometer < 0 || d.odometer > 10_000_000)) e.odometer = 'Bitte einen gültigen Kilometerstand eingeben.'
+  return e
+}
 
 /**
  * Ermittelt die gefahrenen Kilometer: Sind beide Kilometerstände gesetzt, gilt deren Differenz,
@@ -56,7 +66,6 @@ export function validateExpense(d: Partial<ExpenseDraft>): FieldErrors {
   else if (d.amountCents === 0) e.amountCents = 'Der Betrag darf nicht 0 € sein.'
   else if (Math.abs(d.amountCents) > 100_000_000) e.amountCents = 'Der Betrag ist unplausibel hoch.'
   if (!d.date || !isIsoDate(d.date)) e.date = 'Bitte ein gültiges Datum angeben.'
-  if (d.liters != null && (!Number.isFinite(d.liters) || d.liters <= 0 || d.liters > 1000)) e.liters = 'Bitte eine Literzahl zwischen 0 und 1.000 angeben.'
   if (d.spreadMonths != null && (!Number.isInteger(d.spreadMonths) || d.spreadMonths < 1 || d.spreadMonths > 120)) e.spreadMonths = 'Bitte eine Monatsanzahl zwischen 1 und 120 angeben.'
   if (d.allocation === 'direct' && (!d.directPersonIds || d.directPersonIds.length === 0)) {
     e.directPersonIds = 'Bitte mindestens eine Person wählen, auf die diese Kosten verteilt werden.'

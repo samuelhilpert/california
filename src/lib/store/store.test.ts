@@ -118,3 +118,20 @@ describe('Konto ↔ Person', () => {
     await expect(linkMember('x@example.com', '  ', db)).rejects.toBeInstanceOf(ValidationError)
   })
 })
+
+describe('Tankbuch im Backup', () => {
+  it('Zusammenführen ordnet Tankfüllungen gleichnamigen Personen zu', async () => {
+    const { saveFuel } = await import('./repo')
+    const a = new MemoryStore()
+    const anna = await addPerson('Anna', a)
+    await saveFuel({ date: '2026-01-01', amountCents: 9000, liters: 50, odometer: 1000, fullTank: true, personId: anna.id }, undefined, a)
+    const backup = parseBackup(JSON.stringify(createBackup(a)))
+    const b = new MemoryStore()
+    const anna2 = await addPerson('Anna', b)
+    await restoreBackup(backup, b, 'merge')
+    expect(b.getData().fuel).toHaveLength(1)
+    expect(b.getData().fuel[0].personId).toBe(anna2.id)
+    // Tankfüllungen fließen nicht in die Abrechnung
+    expect(buildSettlement(b.getData(), { period: { kind: 'all' }, today: '2026-12-31' }).totalCostCents).toBe(0)
+  })
+})

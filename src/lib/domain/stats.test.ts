@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { Expense, Person, Trip } from './types'
-import { costStats, dueCosts, fuelStats, kmStats, tripDays, tripNights, tripPlaces, usageStats, yearReview } from './stats'
+import type { Expense, FuelFill, Person, Trip } from './types'
+import { costStats, dueCosts, fuelLog, kmStats, tripDays, tripNights, tripPlaces, usageStats, yearReview } from './stats'
 
 const at = '2026-01-01T00:00:00.000Z'
 const trip = (id: string, startDate: string, km: number, personIds: string[], extra: Partial<Trip> = {}): Trip => ({ id, startDate, km, personIds, createdAt: at, updatedAt: at, ...extra })
@@ -54,19 +54,6 @@ describe('Pro-Statistiken', () => {
     expect(u.perPerson).toEqual([{ personId: 'a', days: 8, nights: 6 }, { personId: 'b', days: 7, nights: 6 }])
   })
 
-  it('Verbrauch nur aus Tankfüllungen mit Litern', () => {
-    const expenses = [
-      expense('t1', '2026-01-05', 9000, { categoryId: 'fuel', liters: 50 }),
-      expense('t2', '2026-02-05', 7000, { categoryId: 'fuel', liters: 40 }),
-      expense('t3', '2026-03-05', 5000, { categoryId: 'fuel' }),
-    ]
-    const f = fuelStats(expenses, [trip('1', '2026-01-10', 1000, ['a'])], 2026)
-    expect(f).toMatchObject({ fillUps: 3, withLiters: 2, liters: 90, cents: 16000 })
-    expect(f.per100km).toBeCloseTo(9)
-    expect(f.avgPricePerLiter).toBeCloseTo(1.7778, 3)
-    expect(f.prices.map((p) => p.pricePerLiter)).toEqual([1.8, 1.75])
-  })
-
   it('Orte einer Fahrt und Jahresrückblick', () => {
     expect(tripPlaces({ from: 'München', stops: ['Barcelona', ' '], to: 'Valencia' })).toEqual(['München', 'Barcelona', 'Valencia'])
     const trips = [
@@ -80,5 +67,42 @@ describe('Pro-Statistiken', () => {
     expect(r.longest?.id).toBe('1')
     expect(r.topPerson).toEqual({ personId: 'a', km: 2320 })
     expect(r.pricePerKm).toBeCloseTo(420 / 4220)
+  })
+})
+
+describe('Tankbuch (Volltank-Methode)', () => {
+  const fill = (id: string, date: string, odometer: number, liters: number | undefined, fullTank: boolean, amountCents = 10000): FuelFill =>
+    ({ id, date, odometer, liters, fullTank, amountCents, createdAt: at, updatedAt: at })
+
+  it('Verbrauch je Volltankung, Teilfüllungen zählen zur nächsten', () => {
+    const log = fuelLog([
+      fill('a', '2026-01-01', 1000, 60, true),
+      fill('b', '2026-01-10', 1400, 20, false),
+      fill('c', '2026-01-20', 1800, 40, true),
+      fill('d', '2026-02-01', 2300, 45, true, 8100),
+    ])
+    const by = new Map(log.entries.map((e) => [e.fill.id, e]))
+    expect(by.get('a')?.per100km).toBeNull() // erste Volltankung: kein Bezug
+    expect(by.get('b')?.per100km).toBeNull() // Teilfüllung
+    expect(by.get('c')?.per100km).toBeCloseTo(7.5) // (20 + 40) / 800 km
+    expect(by.get('d')?.per100km).toBeCloseTo(9) // 45 / 500 km
+    expect(by.get('d')?.pricePerLiter).toBeCloseTo(1.8)
+    expect(by.get('c')?.kmSincePrev).toBe(400)
+    expect(log.avgPer100km).toBeCloseTo((105 / 1300) * 100) // 20+40+45 l auf 1.300 km
+    expect(log.entries[0].fill.id).toBe('d') // neueste zuerst
+  })
+
+  it('fehlende Liter zwischen zwei Volltankungen → kein Verbrauch für diese Strecke', () => {
+    const log = fuelLog([fill('a', '2026-01-01', 1000, 60, true), fill('b', '2026-01-10', 1400, undefined, false), fill('c', '2026-01-20', 1800, 40, true)])
+    expect(log.entries.find((e) => e.fill.id === 'c')?.per100km).toBeNull()
+    expect(log.avgPer100km).toBeNull()
+    // Eine spätere vollständige Strecke zählt trotzdem – ohne die Lücke davor
+    const more = fuelLog([fill('a', '2026-01-01', 1000, 60, true), fill('b', '2026-01-10', 1400, undefined, false), fill('c', '2026-01-20', 1800, 40, true), fill('d', '2026-02-01', 2300, 45, true)])
+    expect(more.avgPer100km).toBeCloseTo(9)
+  })
+
+  it('Hinweis, solange zu wenig Volltankungen da sind', () => {
+    expect(fuelLog([]).hint).toMatch(/Noch keine/)
+    expect(fuelLog([fill('a', '2026-01-01', 1000, 60, true)]).hint).toMatch(/zwei Volltankungen/)
   })
 })

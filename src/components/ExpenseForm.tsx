@@ -7,13 +7,11 @@ import { validateExpense, hasErrors, type ExpenseDraft, type FieldErrors } from 
 import { addCategory, saveExpense, ValidationError } from '../lib/store/repo'
 import { todayIso } from '../lib/domain/dates'
 import { expandExpense } from '../lib/domain/recurrence'
-import { centsToInput, formatDate, formatEuro, numberToInput } from '../lib/format'
+import { centsToInput, formatDate, formatEuro } from '../lib/format'
 import { Button, Disclosure, Field, Input, Modal, Select, Textarea } from './ui'
 import { PersonMultiSelect } from './PersonMultiSelect'
 import { errorMessage, useFeedback } from './feedback-context'
-import { useMyPerson, useProMode } from '../lib/store/context'
-import { parseNumberInput } from '../lib/domain/money'
-import { FUEL_CATEGORY } from '../lib/domain/stats'
+import { useMyPerson } from '../lib/store/context'
 
 interface Props {
   open: boolean
@@ -34,7 +32,6 @@ type EndMode = 'open' | 'count' | 'until'
 function ExpenseForm({ onClose, expense, categories, persons }: Props) {
   const { toast } = useFeedback()
   const me = useMyPerson()
-  const [pro] = useProMode()
   const [title, setTitle] = useState(expense?.title ?? '')
   const [categoryId, setCategoryId] = useState(expense?.categoryId ?? categories[0]?.id ?? '')
   const [amount, setAmount] = useState(centsToInput(expense?.amountCents))
@@ -47,7 +44,6 @@ function ExpenseForm({ onClose, expense, categories, persons }: Props) {
   const [directIds, setDirectIds] = useState<string[]>(expense?.directPersonIds ?? [])
   const [note, setNote] = useState(expense?.note ?? '')
   // Neue Ausgabe: Wer sie einträgt, hat sie meist auch bezahlt.
-  const [litersInput, setLitersInput] = useState(numberToInput(expense?.liters))
   const [paidBy, setPaidBy] = useState(expense ? (expense.paidBy ?? '') : (me?.id ?? ''))
   const [spread, setSpread] = useState(Boolean(expense?.spreadMonths && expense.spreadMonths > 1))
   const [spreadMonths, setSpreadMonths] = useState(String(expense?.spreadMonths ?? 12))
@@ -75,11 +71,8 @@ function ExpenseForm({ onClose, expense, categories, persons }: Props) {
           },
     spreadMonths: spread ? Number(spreadMonths) : undefined,
     paidBy: paidBy || undefined,
-    // Liter nur bei einmaligen Tankfüllungen; bleiben auch ohne Pro-Modus erhalten
-    liters: categoryId === FUEL_CATEGORY && repeat === 'once' && litersInput.trim() ? (parseNumberInput(litersInput) ?? undefined) : undefined,
     note: note || undefined,
   }
-  const showLiters = pro && categoryId === FUEL_CATEGORY && repeat === 'once'
 
   const preview = useMemo(() => {
     if (repeat === 'once' || amountCents == null || !date) return null
@@ -94,7 +87,6 @@ function ExpenseForm({ onClose, expense, categories, persons }: Props) {
   const submit = async () => {
     const parseErr: FieldErrors = {}
     if (amount.trim() && amountCents == null) parseErr.amountCents = 'Bitte einen gültigen Betrag eingeben, z. B. 319,15.'
-    if (litersInput.trim() && parseNumberInput(litersInput) == null && categoryId === FUEL_CATEGORY) parseErr.liters = 'Bitte eine Zahl eingeben, z. B. 52,4.'
     if (repeat !== 'once' && endMode === 'until' && !until) parseErr.recurrenceUntil = 'Bitte ein Enddatum wählen.'
     const all = { ...validateExpense(draft), ...parseErr }
     if (all.recurrenceCount || all.recurrenceUntil || all.spreadMonths || all.directPersonIds) setMoreOpen(true)
@@ -160,11 +152,6 @@ function ExpenseForm({ onClose, expense, categories, persons }: Props) {
           <Field label={repeat === 'once' ? 'Betrag' : 'Betrag je Fälligkeit'} htmlFor="e-amount" error={errors.amountCents}>
             <Input id="e-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0,00" suffix="€" invalid={!!errors.amountCents} />
           </Field>
-          {showLiters && (
-            <Field label="Getankte Liter" htmlFor="e-liters" optional error={errors.liters} hint={amountCents && parseNumberInput(litersInput) ? `${formatEuro(Math.round(amountCents / (parseNumberInput(litersInput) as number)))} pro Liter` : 'Für Verbrauch und Spritpreis in der Statistik'}>
-              <Input id="e-liters" inputMode="decimal" value={litersInput} onChange={(e) => setLitersInput(e.target.value)} placeholder="z. B. 52,4" suffix="l" invalid={!!errors.liters} />
-            </Field>
-          )}
           <Field label={repeat === 'once' ? 'Datum' : 'Erste Fälligkeit'} htmlFor="e-date" error={errors.date}>
             <Input id="e-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} invalid={!!errors.date} />
           </Field>

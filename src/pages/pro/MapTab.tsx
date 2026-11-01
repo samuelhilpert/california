@@ -1,6 +1,6 @@
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { MapPin } from 'lucide-react'
 import { useAppData, useMyPerson } from '../../lib/store/context'
 import type { Trip } from '../../lib/domain/types'
@@ -20,17 +20,20 @@ interface Stop {
 
 /** Liest eine Farbe aus den Design-Tokens, damit Karte und Diagramme zusammenpassen (hell/dunkel). */
 const token = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#0d9488'
-
-/**
- * Grundkarte von OpenStreetMap, per CSS in Grautönen (siehe .trip-map in index.css), damit die
- * selbst gezeichneten Ländergrenzen und die besuchten Länder hervortreten.
- * Ländergrenzen: Natural Earth 1:110 Mio. (gemeinfrei), verkleinert unter public/geo/laender.json.
- */
-const TILES = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
-const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · Grenzen: Natural Earth'
 const isDark = () => document.documentElement.classList.contains('dark')
 
-type Countries = GeoJSON.FeatureCollection<GeoJSON.Geometry, { code: string; name: string }>
+/**
+ * Eigene, ruhige Kartengrundlage: Meer, Land und Grenzen aus Natural Earth (1:50 Mio., gemeinfrei,
+ * verkleinert unter public/geo/laender.json). Erst beim Hineinzoomen blendet OpenStreetMap mit
+ * Straßen und Orten ein (in Grautönen, siehe .trip-map in index.css).
+ */
+const TILES = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+const DETAIL_ZOOM = 6
+const ATTRIBUTION = 'Grenzen: Natural Earth · &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+
+type CountryProps = { code: string; name: string }
+type CountryFeature = GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon, CountryProps>
+type Countries = GeoJSON.FeatureCollection<GeoJSON.Polygon | GeoJSON.MultiPolygon, CountryProps>
 let countriesPromise: Promise<Countries | null> | null = null
 /** Ländergrenzen einmal laden (nur wenn die Karte geöffnet wird). */
 function loadCountries(): Promise<Countries | null> {
@@ -40,12 +43,32 @@ function loadCountries(): Promise<Countries | null> {
   return countriesPromise
 }
 
-function TripMap({ stops, visited }: { stops: Stop[]; visited: Set<string> }) {
+type Ring = GeoJSON.Position[]
+const polygonsOf = (g: GeoJSON.Polygon | GeoJSON.MultiPolygon): Ring[][] => (g.type === 'Polygon' ? [g.coordinates] : g.coordinates)
+const ringBounds = (r: Ring) => L.latLngBounds(r.map(([lon, lat]) => [lat, lon] as [number, number]))
+
+/**
+ * Ausschnitt eines Landes: nur die Teilflächen, in denen Ziele liegen – sonst würde z. B. Frankreich
+ * wegen Französisch-Guayana bis nach Südamerika reichen. Ohne Ziel: die größte Teilfläche.
+ */
+function countryBounds(f: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon, CountryProps>, points: L.LatLng[]): L.LatLngBounds {
+  const parts = polygonsOf(f.geometry).map((p) => ringBounds(p[0]))
+  const hit = parts.filter((b) => points.some((pt) => b.contains(pt)))
+  if (hit.length) return hit.reduce((acc, b) => acc.extend(b), L.latLngBounds(hit[0].getSouthWest(), hit[0].getNorthEast()))
+  const area = (b: L.LatLngBounds) => (b.getNorth() - b.getSouth()) * (b.getEast() - b.getWest())
+  return parts.sort((x, y) => area(y) - area(x))[0]
+}
+
+export type MapFocus = { kind: 'all' } | { kind: 'country'; code: string } | { kind: 'place'; lat: number; lon: number }
+
+function TripMap({ stops, visited, focus }: { stops: Stop[]; visited: Set<string>; focus: { target: MapFocus; n: number } }) {
   const el = useRef<HTMLDivElement>(null)
   const map = useRef<L.Map | null>(null)
-  const layer = useRef<L.LayerGroup | null>(null)
+  const markers = useRef<L.LayerGroup | null>(null)
+  const countryLayer = useRef<L.GeoJSON<CountryProps> | null>(null)
   const [dark, setDark] = useState(isDark)
   const [countries, setCountries] = useState<Countries | null>(null)
+  const [zoom, setZoom] = useState(4)
 
   useEffect(() => {
     let alive = true
@@ -60,46 +83,105 @@ function TripMap({ stops, visited }: { stops: Stop[]; visited: Set<string> }) {
     return () => mo.disconnect()
   }, [])
 
+  // Ausschnitt mit allen besuchten Ländern (bzw. allen Zielen)
+  const fitAll = useRef<() => void>(() => {})
+  // Immer mit den aktuellen Daten (Knopf und Effekte rufen die Ref auf)
+  useLayoutEffect(() => {
+    fitAll.current = () => {
+      const m = map.current
+      if (!m) return
+      const pts = stops.map((s) => L.latLng(s.place.lat, s.place.lon))
+      let b: L.LatLngBounds | null = pts.length ? L.latLngBounds(pts) : null
+      for (const f of countries?.features ?? []) {
+        if (!visited.has(f.properties.code)) continue
+        const cb = countryBounds(f, pts)
+        b = b ? b.extend(cb) : cb
+      }
+      if (b) m.flyToBounds(b, { padding: [24, 24], maxZoom: 8, duration: 0.6 })
+    }
+  })
+
   useEffect(() => {
     if (!el.current || map.current) return
-    const m = L.map(el.current, { scrollWheelZoom: false, worldCopyJump: true }).setView([48.1, 11.6], 5)
+    const m = L.map(el.current, {
+      zoomSnap: 0.25,
+      zoomDelta: 0.5,
+      wheelPxPerZoomLevel: 90,
+      minZoom: 2,
+      maxZoom: 16,
+      worldCopyJump: true,
+      attributionControl: true,
+    }).setView([47, 10], 4)
+    m.createPane('countries').style.zIndex = '250' // über den Kacheln, unter den Punkten
+    L.tileLayer(TILES, { minZoom: DETAIL_ZOOM, maxZoom: 18, attribution: ATTRIBUTION }).addTo(m)
+    markers.current = L.layerGroup().addTo(m)
+    m.on('zoomend', () => setZoom(m.getZoom()))
+    // Knopf „Alles anzeigen“ unter +/−
+    const Fit = L.Control.extend({
+      onAdd: () => {
+        const b = L.DomUtil.create('button', 'leaflet-bar trip-map-fit')
+        b.type = 'button'
+        b.title = 'Alles anzeigen'
+        b.setAttribute('aria-label', 'Alles anzeigen')
+        b.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>'
+        L.DomEvent.disableClickPropagation(b)
+        L.DomEvent.on(b, 'click', () => fitAll.current())
+        return b
+      },
+    })
+    new Fit({ position: 'topleft' }).addTo(m)
     map.current = m
-    layer.current = L.layerGroup().addTo(m)
     return () => {
       m.remove()
       map.current = null
     }
   }, [])
 
-  useEffect(() => {
-    const m = map.current
-    if (!m) return
-    const tiles = L.tileLayer(TILES, { maxZoom: 18, attribution: ATTRIBUTION }).addTo(m)
-    return () => { tiles.remove() }
-  }, [])
-
-  // Ländergrenzen für alle Länder, besuchte Länder eingefärbt
+  // Länder: Fläche, Grenzen, besuchte eingefärbt; Hinweis mit Namen; Klick zoomt hin
   useEffect(() => {
     const m = map.current
     if (!m || !countries) return
-    const color = token('--color-chart-1')
-    const line = dark ? '#94a3b8' : '#475569'
+    const pts = stops.map((s) => L.latLng(s.place.lat, s.place.lon))
     const g = L.geoJSON(countries, {
-      interactive: false,
-      style: (f) => {
-        const on = !!f && visited.has(f.properties.code)
-        return { color: line, weight: 1, opacity: 0.8, fillColor: color, fillOpacity: on ? 0.35 : 0 }
+      pane: 'countries',
+      onEachFeature: (f, layer) => {
+        const tip = document.createElement('span')
+        tip.textContent = f.properties.name + (visited.has(f.properties.code) ? ' · besucht' : '')
+        layer.bindTooltip(tip, { sticky: true, direction: 'top', opacity: 0.95 })
+        layer.on('click', () => m.flyToBounds(countryBounds(f as CountryFeature, pts), { padding: [24, 24], maxZoom: 8, duration: 0.6 }))
       },
     }).addTo(m)
-    // Grenzen unter die Punkte legen
-    g.bringToBack()
-    return () => { g.remove() }
-  }, [countries, visited, dark])
+    countryLayer.current = g
+    return () => {
+      g.remove()
+      countryLayer.current = null
+    }
+  }, [countries, visited, stops])
 
+  // Stil je nach Zoom: weit draußen eigene Karte, hineingezoomt scheint OpenStreetMap durch
   useEffect(() => {
-    const m = map.current
-    const g = layer.current
-    if (!m || !g) return
+    const g = countryLayer.current
+    if (!g) return
+    const detail = zoom >= DETAIL_ZOOM
+    const color = token('--color-chart-1')
+    const land = token('--color-map-land')
+    const border = token('--color-map-border')
+    g.setStyle((f) => {
+      const on = !!f && visited.has(f.properties.code)
+      return {
+        color: on ? color : border,
+        weight: on ? 1.5 : 1,
+        opacity: detail ? 0.6 : 1,
+        fillColor: on ? color : land,
+        fillOpacity: on ? (detail ? 0.18 : 0.55) : detail ? 0 : 1,
+      }
+    })
+  }, [zoom, visited, dark, countries, stops])
+
+  // Ziele als Punkte
+  useEffect(() => {
+    const g = markers.current
+    if (!g) return
     g.clearLayers()
     const color = token('--color-chart-1')
     const ring = token('--color-surface')
@@ -109,24 +191,41 @@ function TripMap({ stops, visited }: { stops: Stop[]; visited: Set<string> }) {
       title.textContent = s.name
       popup.append(title, document.createElement('br'), `${s.visits}× angefahren`)
       L.circleMarker([s.place.lat, s.place.lon], {
-        radius: s.destination ? Math.min(10, 5 + s.visits) : 4,
+        radius: s.destination ? Math.min(9, 4 + s.visits) : 3.5,
         color: ring,
         weight: 2,
         fillColor: color,
-        fillOpacity: s.destination ? 1 : 0.5,
+        fillOpacity: s.destination ? 1 : 0.6,
       })
         .bindPopup(popup)
-        .bindTooltip(s.name)
+        .bindTooltip(s.name, { direction: 'top' })
         .addTo(g)
     }
-    // Punkte über den Ländergrenzen halten
-    g.eachLayer((l) => (l as L.CircleMarker).bringToFront?.())
-    const pts = stops.map((s) => [s.place.lat, s.place.lon] as [number, number])
-    if (pts.length === 1) m.setView(pts[0], 8)
-    else if (pts.length > 1) m.fitBounds(L.latLngBounds(pts), { padding: [30, 30], maxZoom: 9 })
-  }, [stops, dark, countries])
+  }, [stops, dark])
 
-  return <div ref={el} className="trip-map h-[420px] w-full overflow-hidden rounded-lg sm:h-[520px]" role="region" aria-label="Karte der Fahrten" />
+  // Startausschnitt bzw. nach Filterwechsel: alles zeigen – kurz verzögert, damit die Karte
+  // nicht bei jedem nachträglich gefundenen Ort springt
+  useEffect(() => {
+    if (!countries) return
+    const t = setTimeout(() => fitAll.current(), 400)
+    return () => clearTimeout(t)
+  }, [countries, stops, visited])
+
+  // Fokus von außen (Klick in Länder- oder Zielliste)
+  useEffect(() => {
+    const m = map.current
+    if (!m || focus.n === 0) return
+    const t = focus.target
+    if (t.kind === 'all') fitAll.current()
+    else if (t.kind === 'place') m.flyTo([t.lat, t.lon], Math.max(m.getZoom(), 9), { duration: 0.6 })
+    else {
+      const f = countries?.features.find((x) => x.properties.code === t.code)
+      if (f) m.flyToBounds(countryBounds(f, stops.map((s) => L.latLng(s.place.lat, s.place.lon))), { padding: [24, 24], maxZoom: 8, duration: 0.6 })
+    }
+    el.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [focus, countries, stops])
+
+  return <div ref={el} className="trip-map h-[440px] w-full overflow-hidden rounded-lg sm:h-[560px]" role="region" aria-label="Karte der Fahrten" />
 }
 
 export function MapTab({ year }: { year: number | null }) {
@@ -176,6 +275,8 @@ export function MapTab({ year }: { year: number | null }) {
   }, [trips, places])
 
   const persons = data.persons.filter((p) => data.trips.some((t) => t.personIds.includes(p.id)))
+  const [focus, setFocus] = useState<{ target: MapFocus; n: number }>({ target: { kind: 'all' }, n: 0 })
+  const focusOn = (target: MapFocus) => setFocus((f) => ({ target, n: f.n + 1 }))
   const visited = useMemo(() => new Set(countries.map((c) => c.code).filter((c): c is string => !!c)), [countries])
   const missing = trips.length - withPlaces.length
 
@@ -202,11 +303,12 @@ export function MapTab({ year }: { year: number | null }) {
         </Card>
       ) : (
         <Card padded={false} className="p-2">
-          <TripMap stops={stops} visited={visited} />
+          <TripMap stops={stops} visited={visited} focus={focus} />
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-2 pb-1 pt-2 text-xs text-slate-500">
-            <span className="inline-flex items-center gap-1.5"><span className="inline-block h-3 w-4 rounded-sm border border-slate-500 bg-chart-1/35" />besuchtes Land</span>
+            <span className="inline-flex items-center gap-1.5"><span className="inline-block h-3 w-4 rounded-sm border border-chart-1 bg-chart-1/55" />besuchtes Land</span>
             <span className="inline-flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-chart-1" />Ziel oder Zwischenstation (größer = öfter)</span>
-            <span className="inline-flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-full bg-chart-1/50" />Startort</span>
+            <span className="inline-flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-full bg-chart-1/60" />Startort</span>
+            <span>Zoomen mit Mausrad, zwei Fingern oder +/−. Klick auf ein Land zoomt hin.</span>
           </div>
         </Card>
       )}
@@ -219,9 +321,11 @@ export function MapTab({ year }: { year: number | null }) {
           ) : (
             <ul className="divide-y divide-slate-100">
               {countries.map((c) => (
-                <li key={c.code ?? c.name} className="flex items-center justify-between gap-3 py-2 text-sm">
-                  <span className="flex items-center gap-2 font-medium text-slate-800"><span aria-hidden className="text-lg">{flag(c.code)}</span>{c.name}</span>
-                  <span className="text-right text-xs text-slate-500">{c.trips.size} Fahrt(en) · erstmals {formatDate(c.first)}</span>
+                <li key={c.code ?? c.name}>
+                  <button type="button" onClick={() => c.code && focusOn({ kind: 'country', code: c.code })} className="-mx-2 flex w-[calc(100%+1rem)] items-center justify-between gap-3 rounded-lg px-2 py-2 text-left text-sm hover:bg-slate-50">
+                    <span className="flex items-center gap-2 font-medium text-slate-800"><span aria-hidden className="text-lg">{flag(c.code)}</span>{c.name}</span>
+                    <span className="text-right text-xs text-slate-500">{c.trips.size} Fahrt(en) · erstmals {formatDate(c.first)}<span className="sr-only"> – auf der Karte zeigen</span></span>
+                  </button>
                 </li>
               ))}
             </ul>
@@ -231,9 +335,11 @@ export function MapTab({ year }: { year: number | null }) {
           <CardTitle sub="Wie oft angefahren (Ziel oder Zwischenstation)">Häufigste Ziele</CardTitle>
           <ul className="divide-y divide-slate-100">
             {stops.filter((s) => s.destination).sort((a, b) => b.visits - a.visits).slice(0, 8).map((s) => (
-              <li key={s.key} className="flex items-center justify-between gap-3 py-2 text-sm">
-                <span className="flex items-center gap-2 text-slate-800"><span aria-hidden>{flag(s.place.countryCode)}</span>{s.name}</span>
-                <span className="tabular font-medium text-slate-900">{s.visits}×</span>
+              <li key={s.key}>
+                <button type="button" onClick={() => focusOn({ kind: 'place', lat: s.place.lat, lon: s.place.lon })} className="-mx-2 flex w-[calc(100%+1rem)] items-center justify-between gap-3 rounded-lg px-2 py-2 text-left text-sm hover:bg-slate-50">
+                  <span className="flex items-center gap-2 text-slate-800"><span aria-hidden>{flag(s.place.countryCode)}</span>{s.name}</span>
+                  <span className="tabular font-medium text-slate-900">{s.visits}×<span className="sr-only"> – auf der Karte zeigen</span></span>
+                </button>
               </li>
             ))}
           </ul>

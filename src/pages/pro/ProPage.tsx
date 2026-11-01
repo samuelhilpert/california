@@ -4,21 +4,23 @@ import { Link, NavLink } from 'react-router-dom'
 import { BarChart3, CalendarDays, Fuel, Gauge, Map as MapIcon, Moon, PartyPopper, Route as RouteIcon, Sparkles, Wallet } from 'lucide-react'
 import { useAppData, useProMode } from '../../lib/store/context'
 import { todayIso } from '../../lib/domain/dates'
-import { availableYears, costStats, dueCosts, fuelStats, kmStats, personName, usageStats } from '../../lib/domain/stats'
+import { availableYears, costStats, dueCosts, fuelLog, kmStats, personName, usageStats } from '../../lib/domain/stats'
 import { formatDate, formatEuro, formatInt, formatKm, formatPercent, formatPricePerKm } from '../../lib/format'
 import { Button, Card, CardTitle, EmptyState, Notice, PageHeader, Select, Stat } from '../../components/ui'
 import { BarList, ColumnChart, YearCalendar } from '../../components/charts'
 import { Loading } from '../../components/Loading'
 import { ReviewTab } from './ReviewTab'
+import { FuelTab } from './FuelTab'
 
 const MapTab = lazy(() => import('./MapTab').then((m) => ({ default: m.MapTab })))
 
-export type ProTab = 'statistik' | 'karte' | 'rueckblick'
+export type ProTab = 'statistik' | 'tanken' | 'karte' | 'rueckblick'
 
-const TABS: { tab: ProTab; to: string; label: string; icon: typeof BarChart3 }[] = [
-  { tab: 'statistik', to: '/pro', label: 'Statistik', icon: BarChart3 },
-  { tab: 'karte', to: '/pro/karte', label: 'Karte & Länder', icon: MapIcon },
-  { tab: 'rueckblick', to: '/pro/rueckblick', label: 'Jahresrückblick', icon: PartyPopper },
+const TABS: { tab: ProTab; to: string; label: string; short: string; icon: typeof BarChart3 }[] = [
+  { tab: 'statistik', to: '/pro', label: 'Statistik', short: 'Statistik', icon: BarChart3 },
+  { tab: 'tanken', to: '/pro/tanken', label: 'Tankbuch', short: 'Tanken', icon: Fuel },
+  { tab: 'karte', to: '/pro/karte', label: 'Karte & Länder', short: 'Karte', icon: MapIcon },
+  { tab: 'rueckblick', to: '/pro/rueckblick', label: 'Jahresrückblick', short: 'Rückblick', icon: PartyPopper },
 ]
 
 const compactKm = (v: number) => (v >= 10_000 ? `${Math.round(v / 1000)}k` : formatInt(v))
@@ -53,7 +55,7 @@ export function ProPage({ tab }: { tab: ProTab }) {
         <nav className="flex gap-1 rounded-xl bg-slate-100 p-1" aria-label="Bereiche">
           {TABS.map((t) => (
             <NavLink key={t.tab} to={t.to} end className={({ isActive }) => clsx('inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium', isActive ? 'bg-surface text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900')}>
-              <t.icon className="h-4 w-4" /><span className="hidden sm:inline">{t.label}</span><span className="sm:hidden">{t.label.split(' ')[0]}</span>
+              <t.icon className="hidden h-4 w-4 min-[400px]:block" /><span className="hidden sm:inline">{t.label}</span><span className="sm:hidden">{t.short}</span>
             </NavLink>
           ))}
         </nav>
@@ -64,6 +66,7 @@ export function ProPage({ tab }: { tab: ProTab }) {
       </div>
 
       {tab === 'statistik' && <StatsTab year={year} years={years} today={today} />}
+      {tab === 'tanken' && <FuelTab year={year} />}
       {tab === 'karte' && <Suspense fallback={<Loading />}><MapTab year={year} /></Suspense>}
       {tab === 'rueckblick' && <ReviewTab year={year ?? years[0]} today={today} />}
     </>
@@ -87,7 +90,7 @@ function StatsTab({ year, years, today }: { year: number | null; years: number[]
   const usageYear = year ?? years[0]
   const u = useMemo(() => usageStats(data.trips, usageYear, today), [data.trips, usageYear, today])
   const allNights = useMemo(() => (year == null ? years.reduce((a, y) => a + usageStats(data.trips, y, today).nights, 0) : u.nights), [data.trips, year, years, today, u.nights])
-  const f = useMemo(() => fuelStats(data.expenses, data.trips, year), [data.expenses, data.trips, year])
+  const f = useMemo(() => fuelLog(data.fuel, year), [data.fuel, year])
   const cat = new Map(data.categories.map((x) => [x.id, x]))
   const name = (id: string) => personName(data.persons, id)
   const periodWord = year == null ? 'Jahr' : 'Monat'
@@ -169,44 +172,15 @@ function StatsTab({ year, years, today }: { year: number | null; years: number[]
       </Section>
 
       <Section title="Verbrauch" icon={<Fuel className="h-5 w-5 text-brand-700" />}>
-        {f.withLiters === 0 ? (
-          <Notice level="info" title="Noch keine Literangaben">
-            Trage bei Ausgaben der Kategorie „Kraftstoff“ die getankten Liter ein. Dann erscheinen hier Verbrauch und Spritpreis.
-          </Notice>
+        {f.entries.length === 0 ? (
+          <Notice level="info" title="Noch keine Tankfüllungen">Tankfüllungen trägst du im <Link to="/pro/tanken" className="font-medium underline">Tankbuch</Link> ein – mit Kilometerstand berechnet die App den Verbrauch.</Notice>
         ) : (
-          <>
-            {f.withLiters < f.fillUps && (
-              <Notice level="warning">Nur {f.withLiters} von {f.fillUps} Tankfüllungen haben eine Literangabe. Der Verbrauch ist deshalb zu niedrig berechnet.</Notice>
-            )}
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-              <Stat label="Verbrauch" value={f.per100km != null ? `${f.per100km.toFixed(1).replace('.', ',')} l` : '–'} sub="je 100 km – stimmt nur, wenn jede Tankfüllung erfasst ist" />
-              <Stat label="Ø Spritpreis" value={f.avgPricePerLiter != null ? `${f.avgPricePerLiter.toFixed(2).replace('.', ',')} €` : '–'} sub="je Liter" />
-              <Stat label="Getankt" value={`${formatInt(Math.round(f.liters))} l`} sub={`${f.withLiters} Tankfüllung(en)`} />
-              <Stat label="Spritkosten" value={formatEuro(f.cents)} sub="mit Literangabe" />
-            </div>
-            {f.prices.length >= 2 && (() => {
-              const min = Math.min(...f.prices.map((p) => p.pricePerLiter))
-              const max = Math.max(...f.prices.map((p) => p.pricePerLiter))
-              const eurL = (v: number) => `${v.toFixed(3).replace('.', ',')} €/l`
-              return (
-                <Card>
-                  <CardTitle sub={`Günstigste ${eurL(min)} · teuerste ${eurL(max)}`}>Spritpreis je Tankfüllung</CardTitle>
-                  <table className="w-full text-sm">
-                    <thead><tr className="text-left text-xs text-slate-500"><th className="py-1 font-medium">Datum</th><th className="py-1 text-right font-medium">Liter</th><th className="py-1 text-right font-medium">Preis</th></tr></thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {[...f.prices].reverse().slice(0, 12).map((p, i) => (
-                        <tr key={`${p.date}-${i}`}>
-                          <td className="py-1.5 text-slate-700">{formatDate(p.date)}</td>
-                          <td className="tabular py-1.5 text-right text-slate-700">{p.liters.toLocaleString('de-DE')} l</td>
-                          <td className={clsx('tabular py-1.5 text-right font-medium', p.pricePerLiter === min ? 'text-emerald-700' : 'text-slate-900')}>{eurL(p.pricePerLiter)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </Card>
-              )
-            })()}
-          </>
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <Stat label="Ø Verbrauch" value={f.avgPer100km != null ? `${f.avgPer100km.toFixed(1).replace('.', ',')} l` : '–'} sub="je 100 km" />
+            <Stat label="Ø Spritpreis" value={f.avgPricePerLiter != null ? `${f.avgPricePerLiter.toFixed(2).replace('.', ',')} €` : '–'} sub="je Liter" />
+            <Stat label="Getankt" value={`${formatInt(Math.round(f.liters))} l`} sub={`${f.entries.length} Tankfüllung(en)`} />
+            <Card className="flex items-center justify-center"><Link to="/pro/tanken" className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:underline"><Fuel className="h-4 w-4" />Zum Tankbuch</Link></Card>
+          </div>
         )}
       </Section>
     </div>

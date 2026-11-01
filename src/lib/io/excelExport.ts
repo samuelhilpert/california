@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx'
-import type { Category, Expense, IsoDate, Person, Trip } from '../domain/types'
+import type { Category, Expense, FuelFill, IsoDate, Person, Trip } from '../domain/types'
 import { personRows, type Settlement } from '../domain/settlement'
 import { describeRecurrence } from '../domain/recurrence'
 
@@ -61,7 +61,7 @@ export function expensesSheet(expenses: Expense[], categories: Category[], perso
   const cm = new Map(categories.map((c) => [c.id, c.name]))
   const pm = new Map(persons.map((p) => [p.id, p]))
   const rows: CellValue[][] = [
-    ['Bezeichnung', 'Kategorie', 'Betrag', 'Anzahl', 'Datum', 'Wiederholung', 'Verteilt auf Monate', 'Bezahlt von', 'Verteilung', 'Direkt verteilt auf', 'Liter', 'Notiz'],
+    ['Bezeichnung', 'Kategorie', 'Betrag', 'Anzahl', 'Datum', 'Wiederholung', 'Verteilt auf Monate', 'Bezahlt von', 'Verteilung', 'Direkt verteilt auf', 'Notiz'],
     ...[...expenses]
       .sort((a, b) => (a.date < b.date ? -1 : 1))
       .map((e) => [
@@ -75,11 +75,10 @@ export function expensesSheet(expenses: Expense[], categories: Category[], perso
         e.paidBy ? pm.get(e.paidBy)?.name ?? 'Unbekannt' : null,
         e.allocation === 'perKm' ? 'über Kilometerpreis' : 'direkt',
         e.allocation === 'direct' ? names(e.directPersonIds ?? [], pm) : null,
-        e.liters ?? null,
         e.note ?? null,
       ]),
   ]
-  return sheet(rows, [28, 22, 12, 8, 12, 22, 12, 16, 20, 26, 8, 30])
+  return sheet(rows, [28, 22, 12, 8, 12, 22, 12, 16, 20, 26, 30])
 }
 
 export function personsSheet(persons: Person[]): XLSX.WorkSheet {
@@ -89,11 +88,25 @@ export function personsSheet(persons: Person[]): XLSX.WorkSheet {
   )
 }
 
-export function buildDataWorkbook(data: { trips: Trip[]; expenses: Expense[]; persons: Person[]; categories: Category[] }): XLSX.WorkBook {
+/** Tankbuch (Pro-Modus) – nicht Teil der Abrechnung. */
+export function fuelSheet(fuel: FuelFill[], persons: Person[]): XLSX.WorkSheet {
+  const pm = new Map(persons.map((p) => [p.id, p.name]))
+  const sorted = [...fuel].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.odometer ?? 0) - (b.odometer ?? 0)))
+  return sheet(
+    [
+      ['Datum', 'Wer', 'Betrag', 'Liter', 'Preis je Liter', 'Kilometerstand', 'Voll getankt', 'Notiz'],
+      ...sorted.map((f) => [date(f.date), f.personId ? pm.get(f.personId) ?? 'Unbekannt' : null, eur(f.amountCents), f.liters ?? null, f.liters ? Math.round((f.amountCents / 100 / f.liters) * 1000) / 1000 : null, f.odometer ?? null, f.fullTank ? 'ja' : 'nein', f.note ?? null]),
+    ],
+    [12, 16, 12, 10, 14, 16, 12, 30],
+  )
+}
+
+export function buildDataWorkbook(data: { trips: Trip[]; expenses: Expense[]; persons: Person[]; categories: Category[]; fuel?: FuelFill[] }): XLSX.WorkBook {
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, tripsSheet(data.trips, data.persons), 'Fahrtenbuch')
   XLSX.utils.book_append_sheet(wb, expensesSheet(data.expenses, data.categories, data.persons), 'Kosten')
   XLSX.utils.book_append_sheet(wb, personsSheet(data.persons), 'Personen')
+  if (data.fuel?.length) XLSX.utils.book_append_sheet(wb, fuelSheet(data.fuel, data.persons), 'Tankbuch')
   return wb
 }
 

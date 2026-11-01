@@ -72,10 +72,22 @@ test('Pro-Modus: Statistik, Karte mit Ländern, Rückblick, Zusatzfelder @mobile
   await page.getByRole('dialog').getByRole('button', { name: /Weitere Angaben/ }).click()
   await expect(page.getByRole('dialog').getByLabel(/Zwischenstationen/)).toBeVisible()
   await page.keyboard.press('Escape')
-  await page.goto('/#/kosten')
-  await page.getByRole('button', { name: /Neue Ausgabe/ }).first().click()
-  await page.getByRole('dialog').getByLabel('Kategorie', { exact: true }).selectOption('fuel')
-  await expect(page.getByRole('dialog').getByLabel(/Getankte Liter/)).toBeVisible()
+  // Tankbuch: getrennt von den Kosten, Verbrauch nach Volltank-Methode
+  await page.goto('/#/pro/tanken')
+  const add = async (amount: string, l: string, km: string) => {
+    await page.getByLabel('Betrag').fill(amount)
+    await page.getByLabel('Liter').fill(l)
+    await page.getByLabel('Kilometerstand').fill(km)
+    await page.getByRole('button', { name: 'Tankfüllung speichern' }).click()
+    await expect(page.getByLabel('Betrag')).toHaveValue('')
+  }
+  await add('90', '50', '10000')
+  await add('81', '45', '10500')
+  await expect(page.getByRole('cell', { name: '9,0 l/100 km' })).toBeVisible()
+  await expectAccessible(page, 'Tankbuch')
+  // Die Abrechnung bleibt unverändert (nur die Leasingrate aus dem Beispiel)
+  await page.goto('/#/abrechnung')
+  await expect(page.getByText('2.553,20 €').first()).toBeVisible()
 
   expect(errors).toEqual([])
 })
