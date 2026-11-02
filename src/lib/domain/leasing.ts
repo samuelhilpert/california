@@ -32,7 +32,7 @@ const RAMP_DAYS = 180
 /** Bis dahin ist die Prognose noch wenig aussagekräftig (Hinweis in der Anzeige). */
 export const EARLY_DAYS = 90
 
-export interface LeasingStatus {
+interface LeasingStatus {
   end: IsoDate
   limitKm: number
   daysTotal: number

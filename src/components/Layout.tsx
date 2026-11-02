@@ -17,7 +17,7 @@ const NAV: NavItem[] = [
 /** Nur im Pro-Modus: Statistik, Karte, Rückblick. */
 const PRO_ITEM: NavItem = { to: '/pro', label: 'Entdecken', short: 'Pro', icon: Sparkles, also: ['/pro/'] }
 
-export function SyncBadge() {
+function SyncBadge() {
   const s = useSyncStatus()
   if (!s.online) {
     return (

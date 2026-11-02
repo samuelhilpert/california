@@ -59,7 +59,7 @@ function countryBounds(f: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon
   return parts.sort((x, y) => area(y) - area(x))[0]
 }
 
-export type MapFocus = { kind: 'all' } | { kind: 'country'; code: string } | { kind: 'place'; lat: number; lon: number }
+type MapFocus = { kind: 'all' } | { kind: 'country'; code: string } | { kind: 'place'; lat: number; lon: number }
 
 function TripMap({ stops, visited, focus }: { stops: Stop[]; visited: Set<string>; focus: { target: MapFocus; n: number } }) {
   const el = useRef<HTMLDivElement>(null)

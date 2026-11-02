@@ -47,7 +47,7 @@ export function useSyncStatus(): SyncStatus {
   return useSyncExternalStore((l) => store.subscribeStatus(l), () => store.getStatus())
 }
 
-export function settingValue<T>(settings: Setting[], key: string): T | undefined {
+function settingValue<T>(settings: Setting[], key: string): T | undefined {
   return settings.find((s) => s.id === key)?.value as T | undefined
 }
 

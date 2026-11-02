@@ -10,7 +10,7 @@ export function snapshotCategories(snap: SettlementSnapshot): Category[] {
   return Object.entries(snap.categoryNames).map(([id, name]) => ({ id, name, builtin: false, color: '#94a3b8' }))
 }
 
-export interface Deviation {
+interface Deviation {
   label: string
   before: string
   now: string

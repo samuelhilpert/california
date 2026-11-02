@@ -5,7 +5,7 @@ import { BarChart3, CalendarDays, Fuel, Trophy, Gauge, Map as MapIcon, Moon, Par
 import { useAppData, useProMode } from '../../lib/store/context'
 import { todayIso } from '../../lib/domain/dates'
 import { availableYears, costStats, dueCosts, fuelLog, kmStats, personName, tripNights, usageStats, validTrips } from '../../lib/domain/stats'
-import { formatDate, formatEuro, formatInt, formatKm, formatPercent, formatPricePerKm } from '../../lib/format'
+import { formatDate, formatDecimal, formatEuro, formatInt, formatKm, formatPercent, formatPricePerKm } from '../../lib/format'
 import { Button, Card, CardTitle, EmptyState, Notice, PageHeader, Select, Stat } from '../../components/ui'
 import { BarList, ColumnChart, YearCalendar } from '../../components/charts'
 import { Loading } from '../../components/Loading'
@@ -17,7 +17,7 @@ import { personColor, personSlot } from '../../lib/personColors'
 
 const MapTab = lazy(() => import('./MapTab').then((m) => ({ default: m.MapTab })))
 
-export type ProTab = 'statistik' | 'tanken' | 'karte' | 'rueckblick' | 'erfolge'
+type ProTab = 'statistik' | 'tanken' | 'karte' | 'rueckblick' | 'erfolge'
 
 const TABS: { tab: ProTab; to: string; label: string; short: string; icon: typeof BarChart3 }[] = [
   { tab: 'statistik', to: '/pro', label: 'Statistik', short: 'Statistik', icon: BarChart3 },
@@ -174,7 +174,7 @@ function StatsTab({ year, years, today }: { year: number | null; years: number[]
           {c.pricePerKmByYear.length >= 2 && (
             <Card>
               <CardTitle sub="Fällige Kosten ÷ gefahrene km">Kosten pro km je Jahr</CardTitle>
-              <ColumnChart data={c.pricePerKmByYear} format={(v) => formatPricePerKm(v)} formatAxis={(v) => `${v.toFixed(2).replace('.', ',')} €`} label="Kosten pro km je Jahr" height={180} />
+              <ColumnChart data={c.pricePerKmByYear} format={(v) => formatPricePerKm(v)} formatAxis={(v) => `${formatDecimal(v, 2)} €`} label="Kosten pro km je Jahr" height={180} />
             </Card>
           )}
         </div>
@@ -201,8 +201,8 @@ function StatsTab({ year, years, today }: { year: number | null; years: number[]
           <Notice level="info" title="Noch keine Tankfüllungen">Tankfüllungen trägst du im <Link to="/pro/tanken" className="font-medium underline">Tankbuch</Link> ein – mit Kilometerstand berechnet die App den Verbrauch.</Notice>
         ) : (
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <Stat label="Ø Verbrauch" value={f.avgPer100km != null ? `${f.avgPer100km.toFixed(1).replace('.', ',')} l` : '–'} sub="je 100 km" />
-            <Stat label="Ø Spritpreis" value={f.avgPricePerLiter != null ? `${f.avgPricePerLiter.toFixed(2).replace('.', ',')} €` : '–'} sub="je Liter" />
+            <Stat label="Ø Verbrauch" value={f.avgPer100km != null ? `${formatDecimal(f.avgPer100km, 1)} l` : '–'} sub="je 100 km" />
+            <Stat label="Ø Spritpreis" value={f.avgPricePerLiter != null ? `${formatDecimal(f.avgPricePerLiter, 2)} €` : '–'} sub="je Liter" />
             <Stat label="Getankt" value={`${formatInt(Math.round(f.liters))} l`} sub={`${f.entries.length} Tankfüllung(en)`} />
             <Card className="flex items-center justify-center"><Link to="/pro/tanken" className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:underline"><Fuel className="h-4 w-4" />Zum Tankbuch</Link></Card>
           </div>

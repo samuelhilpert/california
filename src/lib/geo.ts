@@ -59,7 +59,7 @@ async function fetchPlace(name: string): Promise<Place | null> {
 }
 
 /** Liefert den Ort aus dem Zwischenspeicher oder fragt ihn (gedrosselt) ab. */
-export function geocode(name: string): Promise<Place | null> {
+function geocode(name: string): Promise<Place | null> {
   const key = placeKey(name)
   const cached = readCache(key)
   if (cached) return Promise.resolve(cached.place)
@@ -75,10 +75,6 @@ export function geocode(name: string): Promise<Place | null> {
   queue = p.catch(() => undefined).then(() => new Promise((r) => setTimeout(r, 1100)))
   inflight.set(key, p)
   return p
-}
-
-export function cachedPlace(name: string): Place | null | undefined {
-  return readCache(placeKey(name))?.place
 }
 
 /**
@@ -114,15 +110,6 @@ export function useGeocode(names: string[]): { places: Map<string, Place | null>
     return m
   }, [sig, fetched])
   return { places, pending: unique.length - places.size, failed }
-}
-
-/** Entfernung in km (Luftlinie). */
-export function distanceKm(a: Place, b: Place): number {
-  const rad = Math.PI / 180
-  const dLat = (b.lat - a.lat) * rad
-  const dLon = (b.lon - a.lon) * rad
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLon / 2) ** 2
-  return 2 * 6371 * Math.asin(Math.sqrt(h))
 }
 
 /** Flaggen-Emoji aus dem Ländercode, z. B. „es“ → 🇪🇸. */

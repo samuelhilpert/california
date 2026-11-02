@@ -181,7 +181,7 @@ function checkReferences(d: AppData) {
   }
 }
 
-export interface RestorePlan {
+interface RestorePlan {
   ops: WriteOp[]
   added: number
   updated: number

@@ -11,7 +11,7 @@ import {
 
 const env = import.meta.env
 
-export const firebaseConfig = {
+const firebaseConfig = {
   apiKey: env.VITE_FIREBASE_API_KEY as string | undefined,
   authDomain: env.VITE_FIREBASE_AUTH_DOMAIN as string | undefined,
   projectId: env.VITE_FIREBASE_PROJECT_ID as string | undefined,
@@ -22,7 +22,7 @@ export const firebaseConfig = {
 
 /** ID des gemeinsamen Fahrtenbuchs (Dokument `books/<id>` in Firestore). */
 export const BOOK_ID = (env.VITE_BOOK_ID as string | undefined) || 'california'
-export const USE_EMULATORS = env.VITE_USE_EMULATORS === 'true'
+const USE_EMULATORS = env.VITE_USE_EMULATORS === 'true'
 
 export function isConfigured(): boolean {
   return Boolean(firebaseConfig.apiKey && firebaseConfig.projectId)

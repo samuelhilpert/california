@@ -1,6 +1,7 @@
 import { clsx } from 'clsx'
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Table2 } from 'lucide-react'
+import { formatInt } from '../lib/format'
 
 export interface Datum {
   key: string
@@ -41,7 +42,7 @@ function columnPath(x: number, y: number, w: number, h: number): string {
 }
 
 /** Umschalter für die Tabellenansicht – jeder Wert ist ohne Hover erreichbar. */
-export function TableToggle({ rows, head }: { rows: [string, string][]; head: [string, string] }) {
+function TableToggle({ rows, head }: { rows: [string, string][]; head: [string, string] }) {
   const [open, setOpen] = useState(false)
   return (
     <div className="mt-2">
@@ -194,7 +195,7 @@ export function YearCalendar({ year, kmPerDay, today }: { year: number; kmPerDay
   const height = topPad + 7 * (cell + gap)
   const perMonth = MONTHS.map((m, i) => {
     const ds = days.filter((d) => d.month === i && (kmPerDay.get(d.iso) ?? 0) > 0)
-    return [m, `${ds.length} Tag(e) · ${Math.round(ds.reduce((a, d) => a + (kmPerDay.get(d.iso) ?? 0), 0)).toLocaleString('de-DE')} km`] as [string, string]
+    return [m, `${ds.length} Tag(e) · ${formatInt(ds.reduce((a, d) => a + (kmPerDay.get(d.iso) ?? 0), 0))} km`] as [string, string]
   })
 
   return (
@@ -213,7 +214,7 @@ export function YearCalendar({ year, kmPerDay, today }: { year: number; kmPerDay
             return (
               <rect key={d.iso} x={left + d.col * (cell + gap)} y={topPad + d.row * (cell + gap)} width={cell} height={cell} rx={2}
                 className={clsx(HEAT_FILL[level(km)], future && 'opacity-40')}>
-                <title>{`${d.day}. ${MONTHS[d.month]}: ${km > 0 ? `${Math.round(km).toLocaleString('de-DE')} km` : 'nicht unterwegs'}`}</title>
+                <title>{`${d.day}. ${MONTHS[d.month]}: ${km > 0 ? `${formatInt(km)} km` : 'nicht unterwegs'}`}</title>
               </rect>
             )
           })}

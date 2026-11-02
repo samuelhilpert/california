@@ -16,7 +16,7 @@ export type TableName = keyof AppData
 export const TABLES: TableName[] = ['persons', 'trips', 'expenses', 'categories', 'payments', 'settlements', 'settings', 'fuel']
 
 /** Schreiboperation; bei „put“ ist der Datensatztyp an die Tabelle gebunden. */
-export type PutOp = { [T in TableName]: { type: 'put'; table: T; value: AppData[T][number] } }[TableName]
+type PutOp = { [T in TableName]: { type: 'put'; table: T; value: AppData[T][number] } }[TableName]
 export type WriteOp = PutOp | { type: 'delete'; table: TableName; id: string }
 
 /** Für generischen Code (Backup), der Datensätze ohne konkreten Typ verschiebt. */

@@ -11,7 +11,7 @@ const PRICE = '#,##0.0000 "€"'
 type CellValue = string | number | null | { v: number; z: string } | { date: IsoDate }
 
 /** ISO-Datum → Excel-Seriennummer (1900-System), zeitzonenunabhängig. */
-export function isoToExcelSerial(d: IsoDate): number {
+function isoToExcelSerial(d: IsoDate): number {
   const [y, m, day] = d.split('-').map(Number)
   return Math.round((Date.UTC(y, m - 1, day) - Date.UTC(1899, 11, 30)) / 86400000)
 }
@@ -42,7 +42,7 @@ function sheet(rows: CellValue[][], widths?: number[]): XLSX.WorkSheet {
 const names = (ids: string[], persons: Map<string, Person>) => ids.map((id) => persons.get(id)?.name ?? 'Unbekannt').join(', ')
 
 /** Spalten bewusst kompatibel zum Import (Kopfzeilen wie in der Original-Excel-Datei). */
-export function tripsSheet(trips: Trip[], persons: Person[]): XLSX.WorkSheet {
+function tripsSheet(trips: Trip[], persons: Person[]): XLSX.WorkSheet {
   const pm = new Map(persons.map((p) => [p.id, p]))
   const sorted = [...trips].sort((a, b) => (a.startDate < b.startDate ? -1 : a.startDate > b.startDate ? 1 : 0))
   const rows: CellValue[][] = [
@@ -57,7 +57,7 @@ export function tripsSheet(trips: Trip[], persons: Person[]): XLSX.WorkSheet {
   return sheet(rows, [12, 12, 18, 18, 28, 20, 20, 18, 30, 15, 30])
 }
 
-export function expensesSheet(expenses: Expense[], categories: Category[], persons: Person[]): XLSX.WorkSheet {
+function expensesSheet(expenses: Expense[], categories: Category[], persons: Person[]): XLSX.WorkSheet {
   const cm = new Map(categories.map((c) => [c.id, c.name]))
   const pm = new Map(persons.map((p) => [p.id, p]))
   const rows: CellValue[][] = [
@@ -81,7 +81,7 @@ export function expensesSheet(expenses: Expense[], categories: Category[], perso
   return sheet(rows, [28, 22, 12, 8, 12, 22, 12, 16, 20, 26, 30])
 }
 
-export function personsSheet(persons: Person[]): XLSX.WorkSheet {
+function personsSheet(persons: Person[]): XLSX.WorkSheet {
   return sheet(
     [['Name', 'Status', 'ID'], ...persons.map((p) => [p.name, p.active ? 'aktiv' : 'deaktiviert', p.id])],
     [24, 14, 40],
@@ -89,7 +89,7 @@ export function personsSheet(persons: Person[]): XLSX.WorkSheet {
 }
 
 /** Tankbuch (Pro-Modus) – nicht Teil der Abrechnung. */
-export function fuelSheet(fuel: FuelFill[], persons: Person[]): XLSX.WorkSheet {
+function fuelSheet(fuel: FuelFill[], persons: Person[]): XLSX.WorkSheet {
   const pm = new Map(persons.map((p) => [p.id, p.name]))
   const sorted = [...fuel].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.odometer ?? 0) - (b.odometer ?? 0)))
   return sheet(

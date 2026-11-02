@@ -51,10 +51,6 @@ export function maxDate(a: IsoDate, b: IsoDate): IsoDate {
   return a > b ? a : b
 }
 
-export function minDate(a: IsoDate, b: IsoDate): IsoDate {
-  return a < b ? a : b
-}
-
 /** Excel-Seriennummer → ISO-Datum (1900- oder 1904-Datumssystem). */
 export function excelSerialToIso(serial: number, date1904 = false): IsoDate | null {
   if (!Number.isFinite(serial) || serial <= 0) return null

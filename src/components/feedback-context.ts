@@ -15,7 +15,7 @@ export interface ToastAction {
   onClick: () => void | Promise<void>
 }
 
-export interface FeedbackApi {
+interface FeedbackApi {
   toast: (message: string, tone?: ToastTone, action?: ToastAction) => void
   confirm: (opts: ConfirmOptions) => Promise<boolean>
 }

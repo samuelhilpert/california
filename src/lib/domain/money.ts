@@ -4,10 +4,6 @@ export function euroToCents(euro: number): number {
   return Math.round(Number((euro * 100).toFixed(6)))
 }
 
-export function centsToEuro(cents: number): number {
-  return cents / 100
-}
-
 /**
  * Eingabe aus einem Formularfeld ("1.234,56", "1234.56", "12,5 €") → Cent.
  * Gibt null zurück, wenn die Eingabe nicht eindeutig interpretierbar ist.

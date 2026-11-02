@@ -17,30 +17,31 @@ import { maxDate } from './dates'
 import { computeBalances, type BalanceResult } from './balance'
 import { findOdometerIssues, type OdometerIssue } from './tripChecks'
 import type { CostEntry, Expense, IsoDate, Payment, Person, Trip } from './types'
+import { formatDate, formatEuro, formatKm } from '../format'
 
 export type TripLike = Pick<Trip, 'id' | 'startDate' | 'km' | 'personIds'> &
   Partial<Pick<Trip, 'endDate' | 'odoStart' | 'odoEnd'>>
 
-export interface TripShare {
+interface TripShare {
   personId: string
   km: number
   cents: number
 }
 
-export interface TripResult {
+interface TripResult {
   tripId: string
   km: number
   costCents: number
   shares: TripShare[]
 }
 
-export interface DirectShare {
+interface DirectShare {
   costId: string
   personId: string
   cents: number
 }
 
-export interface PersonResult {
+interface PersonResult {
   personId: string
   /** Anteilige Kilometer (Kilometer der Fahrt / Anzahl Beteiligte, summiert). */
   km: number
@@ -51,7 +52,7 @@ export interface PersonResult {
   tripIds: string[]
 }
 
-export interface CategoryResult {
+interface CategoryResult {
   categoryId: string
   totalCents: number
   perKmCents: number
@@ -59,14 +60,14 @@ export interface CategoryResult {
   entryCount: number
 }
 
-export type InvalidReason = 'invalid-km' | 'no-persons' | 'duplicate-persons' | 'odometer'
+type InvalidReason = 'invalid-km' | 'no-persons' | 'duplicate-persons' | 'odometer'
 
-export interface InvalidTrip {
+interface InvalidTrip {
   tripId: string
   reason: InvalidReason
 }
 
-export type DistributionStatus = 'ok' | 'no-trips' | 'zero-km' | 'no-costs'
+type DistributionStatus = 'ok' | 'no-trips' | 'zero-km' | 'no-costs'
 
 export interface Distribution {
   status: DistributionStatus
@@ -223,7 +224,7 @@ export function computeDistribution(trips: TripLike[], costs: CostEntry[]): Dist
 // Abrechnung mit Zeitraumlogik
 // ---------------------------------------------------------------------------
 
-export type NoticeLevel = 'info' | 'warning' | 'error'
+type NoticeLevel = 'info' | 'warning' | 'error'
 
 export interface Notice {
   level: NoticeLevel
@@ -238,7 +239,7 @@ export interface SettlementInput {
   payments?: Payment[]
 }
 
-export interface SettlementOptions {
+interface SettlementOptions {
   /** Zeitraum für Fahrten. */
   period: PeriodSpec
   /** Abweichender Zeitraum für Kosten. Standard: derselbe wie für Fahrten. */
@@ -294,8 +295,6 @@ export function buildSettlement(input: SettlementInput, options: SettlementOptio
   const actualCostSpan = span(costs.map((c) => c.date))
 
   const notices: Notice[] = []
-  const eur = (c: number) => (c / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })
-  const de = (d: IsoDate) => d.split('-').reverse().join('.')
 
   if (separatePeriods) {
     notices.push({
@@ -308,7 +307,7 @@ export function buildSettlement(input: SettlementInput, options: SettlementOptio
     notices.push({
       level: 'error',
       code: 'no-trips',
-      message: `Im gewählten Zeitraum gibt es keine gültigen Fahrten. Kilometerbezogene Kosten von ${eur(dist.perKmCostCents)} können nicht verteilt werden.`,
+      message: `Im gewählten Zeitraum gibt es keine gültigen Fahrten. Kilometerbezogene Kosten von ${formatEuro(dist.perKmCostCents)} können nicht verteilt werden.`,
     })
   } else if (dist.status === 'no-trips') {
     notices.push({ level: 'info', code: 'no-trips', message: 'Im gewählten Zeitraum gibt es keine Fahrten.' })
@@ -316,7 +315,7 @@ export function buildSettlement(input: SettlementInput, options: SettlementOptio
     notices.push({
       level: 'error',
       code: 'zero-km',
-      message: `Die Fahrten im Zeitraum haben zusammen 0 km. Ein Kilometerpreis kann nicht berechnet werden; ${eur(dist.perKmCostCents)} bleiben unverteilt.`,
+      message: `Die Fahrten im Zeitraum haben zusammen 0 km. Ein Kilometerpreis kann nicht berechnet werden; ${formatEuro(dist.perKmCostCents)} bleiben unverteilt.`,
     })
   } else if (dist.status === 'no-costs') {
     notices.push({ level: 'info', code: 'no-costs', message: 'Im Kostenzeitraum sind keine Kosten erfasst.' })
@@ -340,7 +339,7 @@ export function buildSettlement(input: SettlementInput, options: SettlementOptio
     notices.push({
       level: 'info',
       code: 'future-costs',
-      message: `${future.length} Kostenbuchung(en) über ${eur(sum(future.map((c) => c.amountCents)))} liegen in der Zukunft (z. B. noch ausstehende Leasingraten) und sind enthalten.`,
+      message: `${future.length} Kostenbuchung(en) über ${formatEuro(sum(future.map((c) => c.amountCents)))} liegen in der Zukunft (z. B. noch ausstehende Leasingraten) und sind enthalten.`,
     })
   }
   if (tripRange.to) {
@@ -349,7 +348,7 @@ export function buildSettlement(input: SettlementInput, options: SettlementOptio
       notices.push({
         level: 'info',
         code: 'crossing-trips',
-        message: `${crossing.length} Fahrt(en) enden nach dem ${de(tripRange.to)}. Sie werden vollständig dem Zeitraum ihres Startdatums zugeordnet.`,
+        message: `${crossing.length} Fahrt(en) enden nach dem ${formatDate(tripRange.to)}. Sie werden vollständig dem Zeitraum ihres Startdatums zugeordnet.`,
       })
     }
   }
@@ -364,7 +363,7 @@ export function buildSettlement(input: SettlementInput, options: SettlementOptio
     notices.push({
       level: 'warning',
       code: 'odometer-gaps',
-      message: `Zwischen den Kilometerständen fehlen ${km.toLocaleString('de-DE')} km (${gaps.length} Lücke(n)). Nicht erfasste Kilometer zahlt niemand – sie erhöhen den Kilometerpreis für alle. Bitte die fehlenden Fahrten im Fahrtenbuch nachtragen.`,
+      message: `Zwischen den Kilometerständen fehlen ${formatKm(km)} (${gaps.length} Lücke(n)). Nicht erfasste Kilometer zahlt niemand – sie erhöhen den Kilometerpreis für alle. Bitte die fehlenden Fahrten im Fahrtenbuch nachtragen.`,
     })
   }
   const overlaps = odometerIssues.filter((i) => i.type === 'overlap')

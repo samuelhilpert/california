@@ -53,7 +53,7 @@ export type Allocation = 'perKm' | 'direct'
 
 export type Frequency = 'monthly' | 'yearly'
 
-export interface Recurrence {
+interface Recurrence {
   frequency: Frequency
   /** Anzahl der Fälligkeiten (z. B. 24 Leasingraten). Leer = unbegrenzt. */
   count?: number

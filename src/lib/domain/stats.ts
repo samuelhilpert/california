@@ -51,7 +51,7 @@ export function availableYears(trips: Trip[], costs: CostEntry[], today: IsoDate
   return [...ys].sort((a, b) => b - a)
 }
 
-export interface Bucket {
+interface Bucket {
   key: string
   label: string
   value: number
@@ -75,7 +75,7 @@ function bucketize<T>(items: T[], date: (x: T) => IsoDate, value: (x: T) => numb
   return out
 }
 
-export interface KmStats {
+interface KmStats {
   trips: number
   km: number
   avgKm: number
@@ -108,7 +108,7 @@ export function kmStats(trips: Trip[], year: number | null, years: number[]): Km
   }
 }
 
-export interface CostStats {
+interface CostStats {
   totalCents: number
   series: Bucket[]
   byCategory: { categoryId: string; cents: number }[]
@@ -148,7 +148,7 @@ export function costStats(input: SettlementInput, costs: CostEntry[], year: numb
   }
 }
 
-export interface UsageStats {
+interface UsageStats {
   /** Tage, an denen der Bus unterwegs war. */
   daysOnRoad: number
   nights: number
@@ -192,7 +192,7 @@ export function usageStats(trips: Trip[], year: number, today: IsoDate): UsageSt
   }
 }
 
-export interface FuelEntry {
+interface FuelEntry {
   fill: FuelFill
   pricePerLiter: number | null
   /** Gefahrene km seit der vorigen Tankfüllung mit Kilometerstand. */
@@ -201,7 +201,7 @@ export interface FuelEntry {
   per100km: number | null
 }
 
-export interface FuelLog {
+interface FuelLog {
   /** Neueste zuerst. */
   entries: FuelEntry[]
   liters: number
@@ -274,7 +274,7 @@ export function tripPlaces(t: Pick<Trip, 'from' | 'stops' | 'to'>): string[] {
   return [t.from, ...(t.stops ?? []), t.to].map((s) => s?.trim()).filter((s): s is string => !!s)
 }
 
-export interface YearReview {
+interface YearReview {
   year: number
   km: number
   trips: number

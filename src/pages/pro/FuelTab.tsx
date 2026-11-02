@@ -7,14 +7,10 @@ import { parseEuroInput, parseNumberInput } from '../../lib/domain/money'
 import { todayIso } from '../../lib/domain/dates'
 import { deleteFuel, restoreRecord, saveFuel, ValidationError } from '../../lib/store/repo'
 import type { FieldErrors } from '../../lib/domain/validation'
-import { centsToInput, formatDate, formatEuro, formatInt, numberToInput } from '../../lib/format'
+import { centsToInput, formatDate, formatDecimal, formatEuro, formatInt, formatLiters, formatPer100km, formatPerLiter, numberToInput } from '../../lib/format'
 import { Button, Card, CardTitle, EmptyState, Field, Input, Modal, Notice, Select, Stat } from '../../components/ui'
 import { ColumnChart } from '../../components/charts'
 import { errorMessage, useFeedback } from '../../components/feedback-context'
-
-const liters = (v: number) => `${v.toLocaleString('de-DE', { maximumFractionDigits: 2 })} l`
-const per100 = (v: number) => `${v.toFixed(1).replace('.', ',')} l/100 km`
-const eurL = (v: number) => `${v.toFixed(3).replace('.', ',')} €/l`
 
 /**
  * Formular für eine Tankfüllung – oben auf der Seite zum schnellen Eintragen,
@@ -68,7 +64,7 @@ function FuelForm({ fill, lastOdo, onDone }: { fill?: FuelFill; lastOdo?: number
       <Field label="Betrag" htmlFor={`f-amount-${id}`} error={errors.amountCents}>
         <Input id={`f-amount-${id}`} inputMode="decimal" value={amount} onChange={(ev) => setAmount(ev.target.value)} placeholder="0,00" suffix="€" invalid={!!errors.amountCents} />
       </Field>
-      <Field label="Liter" htmlFor={`f-liters-${id}`} error={errors.liters} hint={cents && l ? eurL(cents / 100 / l) : undefined}>
+      <Field label="Liter" htmlFor={`f-liters-${id}`} error={errors.liters} hint={cents && l ? formatPerLiter(cents / 100 / l) : undefined}>
         <Input id={`f-liters-${id}`} inputMode="decimal" value={litersIn} onChange={(ev) => setLitersIn(ev.target.value)} placeholder="z. B. 52,4" suffix="l" invalid={!!errors.liters} />
       </Field>
       <Field label="Kilometerstand" htmlFor={`f-odo-${id}`} error={errors.odometer} hint={!fill && lastOdo != null ? `Letzte Tankfüllung: ${formatInt(lastOdo)} km` : undefined}>
@@ -128,9 +124,9 @@ export function FuelTab({ year }: { year: number | null }) {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <Stat label="Ø Verbrauch" value={all.avgPer100km != null ? `${all.avgPer100km.toFixed(1).replace('.', ',')} l` : '–'} sub="je 100 km, zwischen Volltankungen" />
-            <Stat label="Ø Spritpreis" value={log.avgPricePerLiter != null ? `${log.avgPricePerLiter.toFixed(2).replace('.', ',')} €` : '–'} sub="je Liter" />
-            <Stat label="Getankt" value={liters(Math.round(log.liters))} sub={`${log.entries.length} Tankfüllung(en)`} />
+            <Stat label="Ø Verbrauch" value={all.avgPer100km != null ? `${formatDecimal(all.avgPer100km, 1)} l` : '–'} sub="je 100 km, zwischen Volltankungen" />
+            <Stat label="Ø Spritpreis" value={log.avgPricePerLiter != null ? `${formatDecimal(log.avgPricePerLiter, 2)} €` : '–'} sub="je Liter" />
+            <Stat label="Getankt" value={formatLiters(Math.round(log.liters))} sub={`${log.entries.length} Tankfüllung(en)`} />
             <Stat label="Spritkosten" value={formatEuro(total)} sub={year ? String(year) : 'gesamt'} />
           </div>
           {all.hint && <Notice level="info">{all.hint}</Notice>}
@@ -138,7 +134,7 @@ export function FuelTab({ year }: { year: number | null }) {
           {withConsumption.length >= 2 && (
             <Card>
               <CardTitle sub="Je Volltankung">Verbrauch im Verlauf</CardTitle>
-              <ColumnChart data={withConsumption.map((e) => ({ key: e.fill.id, label: formatDate(e.fill.date).slice(0, 6), value: e.per100km ?? 0 }))} format={per100} formatAxis={(v) => v.toFixed(0)} label="Verbrauch je Volltankung" height={180} />
+              <ColumnChart data={withConsumption.map((e) => ({ key: e.fill.id, label: formatDate(e.fill.date).slice(0, 6), value: e.per100km ?? 0 }))} format={formatPer100km} formatAxis={formatInt} label="Verbrauch je Volltankung" height={180} />
             </Card>
           )}
 
@@ -168,10 +164,10 @@ export function FuelTab({ year }: { year: number | null }) {
                         {f.odometer != null ? `${formatInt(f.odometer)} km` : '–'}
                         {kmSincePrev != null && <div className="text-xs text-slate-500">+{formatInt(kmSincePrev)} km</div>}
                       </td>
-                      <td className="tabular px-3 py-2.5 text-right text-slate-700">{f.liters ? liters(f.liters) : '–'}</td>
+                      <td className="tabular px-3 py-2.5 text-right text-slate-700">{f.liters ? formatLiters(f.liters) : '–'}</td>
                       <td className="tabular px-3 py-2.5 text-right text-slate-900">{formatEuro(f.amountCents)}</td>
-                      <td className="tabular px-3 py-2.5 text-right text-slate-700">{pricePerLiter != null ? eurL(pricePerLiter) : '–'}</td>
-                      <td className="tabular px-3 py-2.5 text-right font-medium text-slate-900">{per100km != null ? per100(per100km) : <span className="font-normal text-slate-400">–</span>}</td>
+                      <td className="tabular px-3 py-2.5 text-right text-slate-700">{pricePerLiter != null ? formatPerLiter(pricePerLiter) : '–'}</td>
+                      <td className="tabular px-3 py-2.5 text-right font-medium text-slate-900">{per100km != null ? formatPer100km(per100km) : <span className="font-normal text-slate-400">–</span>}</td>
                       <td className="px-5 py-2.5 text-right">
                         <Button variant="ghost" size="icon" onClick={() => setEditing(f)} aria-label={`Tankfüllung vom ${formatDate(f.date)} bearbeiten`}><Pencil className="h-4 w-4" /></Button>
                       </td>

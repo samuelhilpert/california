@@ -1,7 +1,7 @@
 import { doc, onSnapshot, setDoc, updateDoc, writeBatch, type Firestore } from 'firebase/firestore'
 import { DEFAULT_CATEGORIES } from './store/defaults'
 
-export interface Book {
+interface Book {
   name: string
   memberEmails: string[]
   createdAt?: string

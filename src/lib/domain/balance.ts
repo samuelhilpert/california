@@ -8,7 +8,7 @@
 import type { CostEntry, Payment } from './types'
 import type { Distribution } from './settlement'
 
-export interface PersonBalance {
+interface PersonBalance {
   personId: string
   paidCents: number
   shareCents: number
@@ -17,7 +17,7 @@ export interface PersonBalance {
   balanceCents: number
 }
 
-export interface Transfer {
+interface Transfer {
   fromPersonId: string
   toPersonId: string
   amountCents: number

@@ -14,11 +14,11 @@ export class ValidationError extends Error {
   }
 }
 
-export function newId(): string {
+function newId(): string {
   return crypto.randomUUID()
 }
 
-export function nowStamp(): string {
+function nowStamp(): string {
   return new Date().toISOString()
 }
 
@@ -36,7 +36,7 @@ const by = () => {
   return e ? { updatedBy: e } : {}
 }
 
-export function normalizeName(name: string): string {
+function normalizeName(name: string): string {
   return name.trim().replace(/\s+/g, ' ')
 }
 
@@ -118,7 +118,7 @@ export async function setPersonActive(id: string, active: boolean, store: DataSt
   await store.commit([{ type: 'put', table: 'persons', value: { ...getPerson(store, id), active, updatedAt: nowStamp() } }])
 }
 
-export function personUsage(id: string, store: DataStore = activeStore()): { trips: number; expenses: number; payments: number } {
+function personUsage(id: string, store: DataStore = activeStore()): { trips: number; expenses: number; payments: number } {
   const d = store.getData()
   return {
     trips: d.trips.filter((t) => t.personIds.includes(id)).length,
