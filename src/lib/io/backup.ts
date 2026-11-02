@@ -91,6 +91,18 @@ const fuelSchema = z.object({
   updatedBy: z.string().optional(),
 })
 
+const planSchema = z.object({
+  id: z.string().min(1),
+  startDate: isoDate,
+  endDate: isoDate.optional(),
+  personIds: z.array(z.string()),
+  title: z.string().optional(),
+  note: z.string().optional(),
+  createdAt: stamp,
+  updatedAt: stamp,
+  updatedBy: z.string().optional(),
+})
+
 const dataSchema = z.object({
   persons: z.array(personSchema),
   trips: z.array(tripSchema),
@@ -100,6 +112,7 @@ const dataSchema = z.object({
   settlements: z.array(settlementSchema).default([]),
   settings: z.array(settingSchema).default([]),
   fuel: z.array(fuelSchema).default([]),
+  plans: z.array(planSchema).default([]),
 })
 
 export interface BackupFile {
@@ -175,6 +188,9 @@ function checkReferences(d: AppData) {
   for (const f of d.fuel) {
     if (f.personId && !personIds.has(f.personId)) throw new BackupError(`Tankfüllung vom ${f.date} verweist auf eine unbekannte Person.`)
   }
+  for (const p of d.plans) {
+    if (p.personIds.some((id) => !personIds.has(id))) throw new BackupError(`Kalendereintrag vom ${p.startDate} verweist auf eine unbekannte Person.`)
+  }
   for (const table of TABLES) {
     const list = d[table] as { id: string }[]
     if (new Set(list.map((x) => x.id)).size !== list.length) throw new BackupError(`Die Sicherung enthält doppelte IDs (${table}).`)
@@ -244,6 +260,7 @@ export function planMerge(current: AppData, backup: BackupFile): RestorePlan {
     })),
     payments: backup.data.payments.map((p) => ({ ...p, fromPersonId: mapP(p.fromPersonId), toPersonId: mapP(p.toPersonId) })),
     fuel: backup.data.fuel.map((f) => (f.personId ? { ...f, personId: mapP(f.personId) } : f)),
+    plans: backup.data.plans.map((p) => ({ ...p, personIds: [...new Set(p.personIds.map(mapP))] })),
   }
   for (const table of TABLES) {
     const cur = new Map((current[table] as { id: string }[]).map((x) => [x.id, x]))

@@ -33,6 +33,7 @@ export default function App() {
               <Route path="daten" element={page(<DataPage />)} />
               <Route path="einstellungen" element={page(<SettingsPage />)} />
               <Route path="pro" element={page(<ProPage tab="statistik" />)} />
+              <Route path="pro/kalender" element={page(<ProPage tab="kalender" />)} />
               <Route path="pro/tanken" element={page(<ProPage tab="tanken" />)} />
               <Route path="pro/karte" element={page(<ProPage tab="karte" />)} />
               <Route path="pro/rueckblick" element={page(<ProPage tab="rueckblick" />)} />

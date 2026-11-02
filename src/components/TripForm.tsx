@@ -23,6 +23,8 @@ interface Props {
   settlements?: SettlementSnapshot[]
   /** Vorbelegung für eine neue Fahrt (z. B. beim Nachtragen einer Kilometerlücke). */
   prefill?: Partial<Trip>
+  /** Wird nach erfolgreichem Speichern aufgerufen (z. B. um einen Kalenderplan zu entfernen). */
+  onSaved?: (trip: Trip) => void
 }
 
 export function TripFormModal(props: Props) {
@@ -31,7 +33,7 @@ export function TripFormModal(props: Props) {
   return <TripForm key={props.trip?.id ?? JSON.stringify(props.prefill ?? 'new')} {...props} />
 }
 
-function TripForm({ onClose, trip, persons, trips, settlements = [], prefill }: Props) {
+function TripForm({ onClose, trip, persons, trips, settlements = [], prefill, onSaved }: Props) {
   const { toast, confirm } = useFeedback()
   const init = trip ?? prefill
   const me = useMyPerson()
@@ -127,7 +129,8 @@ function TripForm({ onClose, trip, persons, trips, settlements = [], prefill }: 
     }
     setSaving(true)
     try {
-      await saveTrip(draft, trip?.id)
+      const saved = await saveTrip(draft, trip?.id)
+      onSaved?.(saved)
       toast(trip ? 'Fahrt wurde aktualisiert.' : 'Fahrt wurde gespeichert.')
       onClose()
     } catch (e) {

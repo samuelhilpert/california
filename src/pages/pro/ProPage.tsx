@@ -1,7 +1,7 @@
 import { clsx } from 'clsx'
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
-import { BarChart3, CalendarDays, Fuel, Trophy, Gauge, Map as MapIcon, Moon, PartyPopper, Route as RouteIcon, Sparkles, Wallet } from 'lucide-react'
+import { BarChart3, CalendarDays, CalendarRange, Fuel, Trophy, Gauge, Map as MapIcon, Moon, PartyPopper, Route as RouteIcon, Sparkles, Wallet } from 'lucide-react'
 import { useAppData, useProMode } from '../../lib/store/context'
 import { todayIso } from '../../lib/domain/dates'
 import { availableYears, costStats, dueCosts, fuelLog, kmStats, personName, tripNights, usageStats, validTrips } from '../../lib/domain/stats'
@@ -13,14 +13,16 @@ import { ReviewTab } from './ReviewTab'
 import { FuelTab } from './FuelTab'
 import { LeasingCard } from './LeasingCard'
 import { AchievementsTab } from './AchievementsTab'
+import { CalendarTab } from './CalendarTab'
 import { personColor, personSlot } from '../../lib/personColors'
 
 const MapTab = lazy(() => import('./MapTab').then((m) => ({ default: m.MapTab })))
 
-type ProTab = 'statistik' | 'tanken' | 'karte' | 'rueckblick' | 'erfolge'
+type ProTab = 'statistik' | 'kalender' | 'tanken' | 'karte' | 'rueckblick' | 'erfolge'
 
 const TABS: { tab: ProTab; to: string; label: string; short: string; icon: typeof BarChart3 }[] = [
   { tab: 'statistik', to: '/pro', label: 'Statistik', short: 'Statistik', icon: BarChart3 },
+  { tab: 'kalender', to: '/pro/kalender', label: 'Kalender', short: 'Kalender', icon: CalendarRange },
   { tab: 'tanken', to: '/pro/tanken', label: 'Tankbuch', short: 'Tanken', icon: Fuel },
   { tab: 'karte', to: '/pro/karte', label: 'Karte & Länder', short: 'Karte', icon: MapIcon },
   { tab: 'rueckblick', to: '/pro/rueckblick', label: 'Jahresrückblick', short: 'Rückblick', icon: PartyPopper },
@@ -54,7 +56,7 @@ export function ProPage({ tab }: { tab: ProTab }) {
 
   return (
     <>
-      <PageHeader title="Entdecken" description="Statistiken, Karte und Rückblick – nur zum Anschauen, die Abrechnung bleibt unverändert." />
+      <PageHeader title="Entdecken" description="Statistiken, Kalender, Karte und Rückblick – die Abrechnung bleibt unverändert." />
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <nav className="-mx-1 flex max-w-full gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1" aria-label="Bereiche">
           {TABS.map((t) => (
@@ -63,13 +65,14 @@ export function ProPage({ tab }: { tab: ProTab }) {
             </NavLink>
           ))}
         </nav>
-        {tab !== 'erfolge' && <Select value={yearSel} onChange={(e) => setYearSel(e.target.value)} aria-label="Jahr" className="w-auto!">
+        {tab !== 'erfolge' && tab !== 'kalender' && <Select value={yearSel} onChange={(e) => setYearSel(e.target.value)} aria-label="Jahr" className="w-auto!">
           {tab !== 'rueckblick' && <option value="all">Alle Jahre</option>}
           {years.map((y) => <option key={y} value={y}>{y}</option>)}
         </Select>}
       </div>
 
       {tab === 'statistik' && <StatsTab year={year} years={years} today={today} />}
+      {tab === 'kalender' && <CalendarTab />}
       {tab === 'tanken' && <FuelTab year={year} />}
       {tab === 'karte' && <Suspense fallback={<Loading />}><MapTab year={year} /></Suspense>}
       {tab === 'erfolge' && <AchievementsTab />}

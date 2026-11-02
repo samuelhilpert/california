@@ -5,7 +5,7 @@
 import type { CostEntry, Expense, FuelFill, IsoDate, Person, Trip } from './types'
 import { validateTripForCalc, type SettlementInput } from './settlement'
 import { expandExpenses } from './recurrence'
-import { daysInMonth, parseIso, toIso } from './dates'
+import { addDays, daysBetween, daysInMonth, toIso } from './dates'
 
 /** Fahrten, die auch in der Abrechnung zählen. */
 export function validTrips(trips: Trip[]): Trip[] {
@@ -16,22 +16,11 @@ const yearOf = (d: IsoDate) => Number(d.slice(0, 4))
 const monthOf = (d: IsoDate) => Number(d.slice(5, 7))
 const inYear = (d: IsoDate, year: number | null) => year == null || yearOf(d) === year
 
-const DAY_MS = 86_400_000
-const toUtc = (d: IsoDate) => {
-  const { year, month, day } = parseIso(d)
-  return Date.UTC(year, month - 1, day)
-}
-const fromUtc = (ms: number): IsoDate => {
-  const x = new Date(ms)
-  return toIso(x.getUTCFullYear(), x.getUTCMonth() + 1, x.getUTCDate())
-}
-
 /** Alle Tage einer Fahrt (Start bis Ende, inklusive). */
 export function tripDays(t: Pick<Trip, 'startDate' | 'endDate'>): IsoDate[] {
-  const start = toUtc(t.startDate)
-  const end = t.endDate && t.endDate > t.startDate ? toUtc(t.endDate) : start
+  const end = t.endDate && t.endDate > t.startDate ? t.endDate : t.startDate
   const days: IsoDate[] = []
-  for (let ms = start; ms <= end && days.length < 400; ms += DAY_MS) days.push(fromUtc(ms))
+  for (let d = t.startDate; d <= end && days.length < 400; d = addDays(d, 1)) days.push(d)
   return days
 }
 
@@ -180,7 +169,7 @@ export function usageStats(trips: Trip[], year: number, today: IsoDate): UsageSt
     }
   }
   const yearDays = Array.from({ length: 12 }, (_, i) => daysInMonth(year, i + 1)).reduce((a, b) => a + b, 0)
-  const elapsed = yearOf(today) === year ? Math.round((toUtc(today) - Date.UTC(year, 0, 1)) / DAY_MS) + 1 : yearOf(today) < year ? 0 : yearDays
+  const elapsed = yearOf(today) === year ? daysBetween(toIso(year, 1, 1), today) + 1 : yearOf(today) < year ? 0 : yearDays
   const daysOnRoad = [...kmPerDay.keys()].filter((d) => yearOf(today) !== year || d <= today).length
   return {
     daysOnRoad,

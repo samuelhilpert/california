@@ -36,6 +36,8 @@ describe('Firestore-Regeln', () => {
     // Tankbuch (Pro-Modus) ist eine eigene Sammlung
     await assertSucceeds(setDoc(doc(db, BOOK, 'fuel', 'f1'), { id: 'f1', amountCents: 9000 }))
     await assertSucceeds(getDocs(collection(db, BOOK, 'fuel')))
+    // Kalender (Pro-Modus) ebenfalls
+    await assertSucceeds(setDoc(doc(db, BOOK, 'plans', 'p1'), { id: 'p1', startDate: '2027-05-01', personIds: [] }))
     // Unbekannte Sammlungen bleiben gesperrt
     await assertFails(setDoc(doc(db, BOOK, 'sonstiges', 'x'), { id: 'x' }))
   })

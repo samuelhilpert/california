@@ -108,6 +108,23 @@ export interface FuelFill {
   updatedBy?: string
 }
 
+/**
+ * Kalender (Pro-Modus): geplante Nutzung des Busses – eine Reservierung, keine Fahrt.
+ * Fließt nie in Abrechnung oder Statistik ein.
+ */
+export interface Plan {
+  id: string
+  startDate: IsoDate
+  endDate?: IsoDate
+  personIds: string[]
+  /** Ziel oder Anlass, z. B. „Gardasee“. */
+  title?: string
+  note?: string
+  createdAt: string
+  updatedAt: string
+  updatedBy?: string
+}
+
 /** Ausgleichszahlung zwischen zwei Personen. */
 export interface Payment {
   id: string

@@ -56,6 +56,7 @@ npx firebase deploy --only hosting,firestore:rules,firestore:indexes
 Unter *Einstellungen → Pro-Modus* (je Konto, auf allen Geräten) erscheint der Bereich **Entdecken**:
 
 - **Statistik:** Kilometer und Kosten je Monat/Jahr, je Person, wer was bezahlt hat, Kosten pro km, Kalender „Wann war der Bus unterwegs?“, Nächte je Person.
+- **Kalender:** Monatsansicht, wer den Bus wann hatte (Farbe je Person); Klick auf eine Fahrt öffnet die Fahrt-Details. Fahrten lassen sich vorab **planen** (Reservierung, gestrichelt) – mit Hinweis bei Überschneidungen und „Als Fahrt eintragen“ nach der Fahrt. Eigene Sammlung `plans` – **nicht** Teil von Abrechnung und Statistik.
 - **Tankbuch:** Tankfüllungen mit Betrag, Litern, Kilometerstand und „voll getankt“; Verbrauch je Tankfüllung nach der Volltank-Methode. Eigene Sammlung `fuel` – **nicht** Teil von Abrechnung und Ausgleich (Sprit zahlt jeder selbst).
 - **Karte & Länder:** eigene Kartengrundlage mit Ländergrenzen, besuchte Länder eingefärbt, Ziele und Zwischenstationen als Punkte; beim Hineinzoomen blendet OpenStreetMap ein. Filter: Auto oder einzelne Person. Klick auf Land oder Ziel zoomt hin.
 - **Leasing-Kilometer:** Vertrag einmal eintragen (Beginn, Laufzeit, km pro Jahr, optional Kilometerstand bei Übergabe, Preise je Mehr-/Minderkilometer und Toleranz) – die App zeigt Verbrauch des Kontingents, Prognose zum Vertragsende und die voraussichtliche Nachzahlung oder Gutschrift.

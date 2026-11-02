@@ -42,7 +42,7 @@ service cloud.firestore {
 
       match /{table}/{docId} {
         allow read, write: if isMember(bookId)
-          && table in ['persons', 'trips', 'expenses', 'categories', 'payments', 'settlements', 'settings', 'fuel'];
+          && table in ['persons', 'trips', 'expenses', 'categories', 'payments', 'settlements', 'settings', 'fuel', 'plans'];
       }
     }
 

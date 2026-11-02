@@ -1,11 +1,24 @@
 import { isIsoDate } from './dates'
-import type { Expense, FuelFill, Trip } from './types'
+import type { Expense, FuelFill, Plan, Trip } from './types'
 
 export type FieldErrors = Record<string, string>
 
 export type TripDraft = Omit<Trip, 'id' | 'createdAt' | 'updatedAt'>
 export type ExpenseDraft = Omit<Expense, 'id' | 'createdAt' | 'updatedAt'>
 export type FuelDraft = Omit<FuelFill, 'id' | 'createdAt' | 'updatedAt'>
+export type PlanDraft = Omit<Plan, 'id' | 'createdAt' | 'updatedAt'>
+
+export function validatePlan(d: Partial<PlanDraft>): FieldErrors {
+  const e: FieldErrors = {}
+  if (!d.startDate || !isIsoDate(d.startDate)) e.startDate = 'Bitte ein gültiges Startdatum angeben.'
+  if (d.endDate) {
+    if (!isIsoDate(d.endDate)) e.endDate = 'Bitte ein gültiges Enddatum angeben.'
+    else if (d.startDate && d.endDate < d.startDate) e.endDate = 'Das Enddatum darf nicht vor dem Startdatum liegen.'
+  }
+  if (!d.personIds?.length) e.personIds = 'Bitte mindestens eine Person auswählen.'
+  if (d.title && d.title.length > 80) e.title = 'Der Titel ist zu lang (max. 80 Zeichen).'
+  return e
+}
 
 export function validateFuel(d: Partial<FuelDraft>): FieldErrors {
   const e: FieldErrors = {}

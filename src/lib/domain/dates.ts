@@ -47,6 +47,23 @@ export function yearKey(date: IsoDate): string {
   return date.slice(0, 4)
 }
 
+const DAY_MS = 86_400_000
+const toUtc = (d: IsoDate) => {
+  const { year, month, day } = parseIso(d)
+  return Date.UTC(year, month - 1, day)
+}
+
+/** Datum um n Tage verschieben (n darf negativ sein). */
+export function addDays(date: IsoDate, n: number): IsoDate {
+  const x = new Date(toUtc(date) + n * DAY_MS)
+  return toIso(x.getUTCFullYear(), x.getUTCMonth() + 1, x.getUTCDate())
+}
+
+/** Anzahl Tage von a bis b (b − a). */
+export function daysBetween(a: IsoDate, b: IsoDate): number {
+  return Math.round((toUtc(b) - toUtc(a)) / DAY_MS)
+}
+
 export function maxDate(a: IsoDate, b: IsoDate): IsoDate {
   return a > b ? a : b
 }
