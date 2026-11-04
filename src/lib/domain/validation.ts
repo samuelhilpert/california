@@ -43,10 +43,8 @@ export function resolveTripKm(odoStart?: number, odoEnd?: number, manualKm?: num
 export function validateTrip(d: Partial<TripDraft>): FieldErrors {
   const e: FieldErrors = {}
   if (!d.startDate || !isIsoDate(d.startDate)) e.startDate = 'Bitte ein gültiges Startdatum angeben.'
-  if (d.endDate) {
-    if (!isIsoDate(d.endDate)) e.endDate = 'Bitte ein gültiges Enddatum angeben.'
-    else if (d.startDate && d.endDate < d.startDate) e.endDate = 'Das Enddatum darf nicht vor dem Startdatum liegen.'
-  }
+  if (!d.endDate || !isIsoDate(d.endDate)) e.endDate = 'Bitte ein gültiges Enddatum angeben.'
+  else if (d.startDate && d.endDate < d.startDate) e.endDate = 'Das Enddatum darf nicht vor dem Startdatum liegen.'
   const checkOdo = (v: number | undefined, key: string) => {
     if (v != null && (!Number.isFinite(v) || v < 0)) e[key] = 'Bitte einen gültigen, nicht-negativen Kilometerstand eingeben.'
   }

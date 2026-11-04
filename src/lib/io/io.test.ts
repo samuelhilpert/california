@@ -21,7 +21,7 @@ describe('Excel-Export', () => {
     const a = await addPerson('Anna', db)
     const b = await addPerson('Ben', db)
     await saveTrip({ startDate: '2026-03-01', endDate: '2026-03-04', from: 'München', to: 'Gardasee', odoStart: 1000, odoEnd: 1450, km: 450, personIds: [a.id, b.id], note: 'Ostern' }, undefined, db)
-    await saveTrip({ startDate: '2026-04-11', km: 82.5, personIds: [a.id] }, undefined, db)
+    await saveTrip({ startDate: '2026-04-11', endDate: '2026-04-11', km: 82.5, personIds: [a.id] }, undefined, db)
     await saveExpense({ title: 'Versicherung', categoryId: 'insurance', amountCents: 89900, date: '2026-01-01', allocation: 'perKm', recurrence: { frequency: 'yearly', count: 2 }, spreadMonths: 12, paidBy: a.id }, undefined, db)
     const wb = readXlsx(workbookToArray(buildDataWorkbook(db.getData())))
     expect(wb.SheetNames).toEqual(['Fahrtenbuch', 'Kosten', 'Personen'])
@@ -41,7 +41,7 @@ describe('Excel-Export', () => {
   it('Abrechnungs-Export enthält alle Blätter mit korrekten Summen', async () => {
     const a = await addPerson('Anna', db)
     const b = await addPerson('Ben', db)
-    await saveTrip({ startDate: '2026-03-01', km: 100, personIds: [a.id, b.id] }, undefined, db)
+    await saveTrip({ startDate: '2026-03-01', endDate: '2026-03-01', km: 100, personIds: [a.id, b.id] }, undefined, db)
     await saveExpense({ title: 'Diesel', categoryId: 'fuel', amountCents: 10001, date: '2026-03-02', allocation: 'perKm' }, undefined, db)
     const data = { trips: db.getData().trips, expenses: db.getData().expenses, persons: db.getData().persons, categories: db.getData().categories }
     const s = buildSettlement(data, { period: { kind: 'all' }, today: TODAY })
@@ -60,7 +60,7 @@ describe('Backup', () => {
     const a = await addPerson('Anna', db)
     await setPersonActive(a.id, false, db)
     await db.commit([{ type: 'put', table: 'categories', value: { id: 'eigene', name: 'Fähre', builtin: false, color: '#000' } }])
-    await saveTrip({ startDate: '2026-03-01', km: 100, personIds: [a.id] }, undefined, db)
+    await saveTrip({ startDate: '2026-03-01', endDate: '2026-03-01', km: 100, personIds: [a.id] }, undefined, db)
     await saveExpense({ title: 'Fähre', categoryId: 'eigene', amountCents: 5000, date: '2026-03-01', allocation: 'direct', directPersonIds: [a.id] }, undefined, db)
     const json = JSON.stringify(createBackup(db))
 
@@ -85,12 +85,12 @@ describe('Backup', () => {
 
   it('Zusammenführen ergänzt fehlende Datensätze und löscht nichts', async () => {
     const a = await addPerson('Anna', db)
-    await saveTrip({ startDate: '2026-03-01', km: 100, personIds: [a.id] }, undefined, db)
+    await saveTrip({ startDate: '2026-03-01', endDate: '2026-03-01', km: 100, personIds: [a.id] }, undefined, db)
     const backup = parseBackup(JSON.stringify(createBackup(db)))
 
     const other = new MemoryStore()
     const c = await addPerson('Clara', other)
-    await saveTrip({ startDate: '2026-05-01', km: 50, personIds: [c.id] }, undefined, other)
+    await saveTrip({ startDate: '2026-05-01', endDate: '2026-05-01', km: 50, personIds: [c.id] }, undefined, other)
     await restoreBackup(backup, other, 'merge')
     expect(other.getData().trips.map((t) => t.km).sort()).toEqual([100, 50])
     expect(other.getData().persons.map((p) => p.name).sort()).toEqual(['Anna', 'Clara'])

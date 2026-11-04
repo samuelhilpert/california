@@ -49,7 +49,7 @@ test('Pro-Modus: Kalender mit Fahrten und geplanten Fahrten @mobile', async ({ p
   await page.getByRole('button', { name: /^Geplant: .*Ostsee/ }).first().click()
   await page.getByRole('button', { name: 'Als Fahrt eintragen' }).click()
   dlg = page.getByRole('dialog', { name: 'Neue Fahrt' })
-  await expect(dlg.getByLabel('Datum', { exact: true })).toHaveValue(`${ym}-10`)
+  await expect(dlg.getByLabel('Startdatum', { exact: true })).toHaveValue(`${ym}-10`)
   await dlg.getByLabel(/Kilometerstand Beginn/).fill('520')
   await dlg.getByLabel(/Kilometerstand Ende/).fill('900')
   await dlg.getByRole('button', { name: 'Fahrt speichern' }).click()

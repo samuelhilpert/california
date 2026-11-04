@@ -45,7 +45,8 @@ function TripForm({ onClose, trip, persons, trips, settlements = [], prefill, on
   }, [trips, trip])
 
   const [startDate, setStartDate] = useState(init?.startDate ?? todayIso())
-  const [endDate, setEndDate] = useState(init?.endDate ?? '')
+  // Ohne Angabe eine Tagesfahrt: Enddatum = Startdatum
+  const [endDate, setEndDate] = useState(init?.endDate ?? init?.startDate ?? todayIso())
   const [from, setFrom] = useState(init?.from ?? '')
   const [to, setTo] = useState(init?.to ?? '')
   const [stops, setStops] = useState(init?.stops?.join(', ') ?? '')
@@ -59,7 +60,7 @@ function TripForm({ onClose, trip, persons, trips, settlements = [], prefill, on
   // Neue Fahrt: Wer sie einträgt, ist meist auch gefahren.
   const [personIds, setPersonIds] = useState<string[]>(init?.personIds ?? (!init && me ? [me.id] : []))
   const [note, setNote] = useState(init?.note ?? '')
-  const [moreOpen, setMoreOpen] = useState(!!(init?.endDate || init?.from || init?.to || init?.note || init?.stops?.length))
+  const [moreOpen, setMoreOpen] = useState(!!(init?.from || init?.to || init?.note || init?.stops?.length))
   const [errors, setErrors] = useState<FieldErrors>({})
   const [saving, setSaving] = useState(false)
 
@@ -86,7 +87,7 @@ function TripForm({ onClose, trip, persons, trips, settlements = [], prefill, on
     return {
       draft: {
         startDate,
-        endDate: endDate || undefined,
+        endDate,
         from: from || undefined,
         to: to || undefined,
         // Bleibt auch ohne Pro-Modus erhalten, wenn jemand anderes Stationen eingetragen hat
@@ -106,7 +107,7 @@ function TripForm({ onClose, trip, persons, trips, settlements = [], prefill, on
     const all = { ...validateTrip(draft), ...parseErrors }
     // Fehlt ein Kilometerstand, steht der Hinweis schon am Feld – kein doppelter Kilometer-Fehler.
     if (!kmOnly && (all.odoStart || all.odoEnd)) delete all.km
-    if (hasErrors(all) && (all.endDate || all.from || all.to || all.note || all.stops)) setMoreOpen(true)
+    if (hasErrors(all) && (all.from || all.to || all.note || all.stops)) setMoreOpen(true)
     setErrors(all)
     if (hasErrors(all)) return
     const similar = findSimilarTrips(draft, trips, trip?.id)
@@ -171,9 +172,26 @@ function TripForm({ onClose, trip, persons, trips, settlements = [], prefill, on
           void submit()
         }}
       >
-        <Field label="Datum" htmlFor="t-start" error={errors.startDate} className="sm:max-w-[14rem]">
-          <Input id="t-start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} invalid={!!errors.startDate} required />
-        </Field>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Startdatum" htmlFor="t-start" error={errors.startDate}>
+            <Input
+              id="t-start"
+              type="date"
+              value={startDate}
+              onChange={(e) => {
+                const next = e.target.value
+                // Tagesfahrt bleibt Tagesfahrt; ein Ende vor dem neuen Start rückt mit.
+                if (endDate === startDate || (next && endDate < next)) setEndDate(next)
+                setStartDate(next)
+              }}
+              invalid={!!errors.startDate}
+              required
+            />
+          </Field>
+          <Field label="Enddatum" htmlFor="t-end" error={errors.endDate}>
+            <Input id="t-end" type="date" value={endDate} min={startDate} onChange={(e) => setEndDate(e.target.value)} invalid={!!errors.endDate} required />
+          </Field>
+        </div>
 
         <div className="rounded-xl bg-slate-50 p-4">
           {kmOnly ? (
@@ -211,11 +229,8 @@ function TripForm({ onClose, trip, persons, trips, settlements = [], prefill, on
           <PersonMultiSelect persons={persons} value={personIds} onChange={setPersonIds} invalid={!!errors.personIds} />
         </Field>
 
-        <Disclosure label="Weitere Angaben (mehrtägig, Strecke, Notiz)" open={moreOpen} onToggle={setMoreOpen}>
+        <Disclosure label="Weitere Angaben (Strecke, Notiz)" open={moreOpen} onToggle={setMoreOpen}>
           <div className="grid gap-4">
-            <Field label="Enddatum" htmlFor="t-end" optional error={errors.endDate} hint="Bei mehrtägigen Fahrten" className="sm:max-w-[14rem]">
-              <Input id="t-end" type="date" value={endDate} min={startDate} onChange={(e) => setEndDate(e.target.value)} invalid={!!errors.endDate} />
-            </Field>
             <div className="grid items-end gap-4 sm:grid-cols-[1fr_auto_1fr]">
               <Field label="Startort" htmlFor="t-from" optional>
                 <Input id="t-from" value={from} onChange={(e) => setFrom(e.target.value)} placeholder="z. B. München" maxLength={120} />

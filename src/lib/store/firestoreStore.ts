@@ -1,6 +1,6 @@
 import { collection, doc, onSnapshot, writeBatch, type Firestore } from 'firebase/firestore'
 import { stripUndefined } from './memoryStore'
-import { withCurrentColor } from './defaults'
+import { normalizeCategory } from './defaults'
 import type { Category } from '../domain/types'
 import { emptyData, TABLES, type AppData, type DataStore, type SyncStatus, type TableName, type WriteOp } from './types'
 
@@ -43,8 +43,8 @@ export class FirestoreStore implements DataStore {
         { includeMetadataChanges: true },
         (snap) => {
           let docs = snap.docs.map((d) => ({ ...d.data(), id: d.id }))
-          // Alte Standardfarben von Kategorien an das aktuelle Design anpassen (ohne zu schreiben)
-          if (table === 'categories') docs = docs.map((c) => withCurrentColor(c as Category))
+          // Alte Standardfarben und frühere Standardkategorien anpassen (ohne zu schreiben)
+          if (table === 'categories') docs = docs.map((c) => normalizeCategory(c as Category))
           this.data = { ...this.data, [table]: docs }
           this.loadedTables.add(table)
           if (snap.metadata.hasPendingWrites) this.pendingTables.add(table)

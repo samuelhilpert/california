@@ -8,7 +8,7 @@ describe('Repository', () => {
   it('Löschen und Rückgängig stellt die Fahrt unverändert wieder her', async () => {
     const db = new MemoryStore()
     const a = await addPerson('Anna', db)
-    const t = await saveTrip({ startDate: '2026-01-01', km: 10, personIds: [a.id] }, undefined, db)
+    const t = await saveTrip({ startDate: '2026-01-01', endDate: '2026-01-01', km: 10, personIds: [a.id] }, undefined, db)
     const removed = await deleteTrip(t.id, db)
     expect(db.getData().trips).toHaveLength(0)
     await restoreRecord('trips', removed!, db)
@@ -23,7 +23,7 @@ describe('Repository', () => {
   it('speichert eine abgeschlossene Abrechnung als JSON-taugliche Momentaufnahme', async () => {
     const db = new MemoryStore()
     const a = await addPerson('Anna', db)
-    await saveTrip({ startDate: '2026-01-01', km: 10, personIds: [a.id] }, undefined, db)
+    await saveTrip({ startDate: '2026-01-01', endDate: '2026-01-01', km: 10, personIds: [a.id] }, undefined, db)
     await saveExpense({ title: 'Diesel', categoryId: 'fuel', amountCents: 1000, date: '2026-01-01', allocation: 'perKm', paidBy: a.id }, undefined, db)
     const s = buildSettlement(db.getData(), { period: { kind: 'all' }, today: '2026-10-27' })
     const snap = await saveSettlementSnapshot({ title: 'Januar', period: { kind: 'all' }, personNames: { [a.id]: 'Anna' }, categoryNames: {}, result: s }, db)
@@ -43,17 +43,17 @@ describe('Backup zusammenführen', () => {
   it('ergänzt neue Datensätze, behält neuere Fassungen, legt gleichnamige Personen zusammen, löscht nichts', async () => {
     const shared = new MemoryStore()
     const a = await addPerson('Anna', shared)
-    const t1 = await saveTrip({ startDate: '2026-01-01', km: 10, personIds: [a.id] }, undefined, shared)
+    const t1 = await saveTrip({ startDate: '2026-01-01', endDate: '2026-01-01', km: 10, personIds: [a.id] }, undefined, shared)
 
     // „Anderes Gerät“: eigener Stand mit Anna (andere ID!) und eigener Fahrt
     const phone = new MemoryStore()
     const a2 = await addPerson('anna', phone)
     const b = await addPerson('Ben', phone)
-    await saveTrip({ startDate: '2026-02-01', km: 20, personIds: [a2.id, b.id] }, undefined, phone)
+    await saveTrip({ startDate: '2026-02-01', endDate: '2026-02-01', km: 20, personIds: [a2.id, b.id] }, undefined, phone)
     const phoneBackup = createBackup(phone)
 
     // Auf dem gemeinsamen Stand inzwischen neuere Änderung an t1
-    await saveTrip({ startDate: '2026-01-01', km: 15, personIds: [a.id] }, t1.id, shared)
+    await saveTrip({ startDate: '2026-01-01', endDate: '2026-01-01', km: 15, personIds: [a.id] }, t1.id, shared)
 
     const plan = planMerge(shared.getData(), phoneBackup)
     expect(plan.removed).toBe(0)

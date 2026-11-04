@@ -192,7 +192,7 @@ function StatsTab({ year, years, today }: { year: number | null; years: number[]
           </Card>
           <Card>
             <CardTitle sub={`${u.nights} Nächte insgesamt`}>Nächte je Person</CardTitle>
-            {u.perPerson.length === 0 ? <p className="text-sm text-slate-500">Keine mehrtägigen Fahrten. Nächte zählen, wenn bei einer Fahrt ein Enddatum eingetragen ist.</p> : (
+            {u.perPerson.length === 0 ? <p className="text-sm text-slate-500">Keine mehrtägigen Fahrten. Nächte zählen, wenn eine Fahrt über mehrere Tage geht.</p> : (
               <BarList rows={u.perPerson.map((p) => ({ key: p.personId, label: name(p.personId), value: p.nights, sub: `${p.days} Tag(e) unterwegs`, color: pc(p.personId) }))} format={(v) => `${formatInt(v)} Nächte`} />
             )}
           </Card>

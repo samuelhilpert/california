@@ -44,7 +44,11 @@ describe('Validierung', () => {
     expect(validateTrip({ startDate: '2026-01-01', km: 10, personIds: [] }).personIds).toBeDefined()
   })
   it('gültige Fahrt', () => {
-    expect(validateTrip({ startDate: '2026-01-01', odoStart: 1, odoEnd: 11, km: 10, personIds: ['a'] })).toEqual({})
+    expect(validateTrip({ startDate: '2026-01-01', endDate: '2026-01-01', odoStart: 1, odoEnd: 11, km: 10, personIds: ['a'] })).toEqual({})
+  })
+  it('Fahrt braucht ein Enddatum, nicht vor dem Start', () => {
+    expect(validateTrip({ startDate: '2026-01-02', km: 10, personIds: ['a'] }).endDate).toBeDefined()
+    expect(validateTrip({ startDate: '2026-01-02', endDate: '2026-01-01', km: 10, personIds: ['a'] }).endDate).toMatch(/nicht vor/)
   })
   it('Direktkosten brauchen Personen', () => {
     expect(validateExpense({ title: 'x', categoryId: 'c', amountCents: 100, date: '2026-01-01', allocation: 'direct', directPersonIds: [] }).directPersonIds).toBeDefined()

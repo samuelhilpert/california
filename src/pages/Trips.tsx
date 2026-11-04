@@ -202,7 +202,7 @@ export function TripsPage() {
                       <tr key={t.id} className="group hover:bg-slate-50/60">
                         <td className="whitespace-nowrap px-4 py-3 align-top">
                           <div className="font-medium text-slate-900">{formatDate(t.startDate)}</div>
-                          {t.endDate && <div className="text-xs text-slate-500">bis {formatDate(t.endDate)}</div>}
+                          {t.endDate && t.endDate !== t.startDate && <div className="text-xs text-slate-500">bis {formatDate(t.endDate)}</div>}
                         </td>
                         <td className="px-4 py-3 align-top">
                           <div className="text-slate-700">{[t.from, t.to].filter(Boolean).join(' → ') || <span className="text-slate-500">–</span>}</div>
@@ -242,7 +242,7 @@ export function TripsPage() {
                 <li key={t.id} className="flex gap-3 p-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline justify-between gap-2">
-                      <span className="font-medium text-slate-900">{formatDate(t.startDate)}{t.endDate && <span className="font-normal text-slate-500"> – {formatDate(t.endDate)}</span>}</span>
+                      <span className="font-medium text-slate-900">{formatDate(t.startDate)}{t.endDate && t.endDate !== t.startDate && <span className="font-normal text-slate-500"> – {formatDate(t.endDate)}</span>}</span>
                       <span className="tabular font-semibold text-slate-900">{formatKm(t.km)}</span>
                     </div>
                     {(t.from || t.to) && <div className="mt-0.5 text-sm text-slate-600">{[t.from, t.to].filter(Boolean).join(' → ')}</div>}

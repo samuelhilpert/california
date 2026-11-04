@@ -22,7 +22,7 @@ async function addTrip(page: Page, o: { date: string; odoStart?: string; odoEnd?
   if (!page.url().endsWith('#/fahrten')) await page.goto('/#/fahrten')
   await page.getByRole('button', { name: 'Neue Fahrt' }).first().click()
   const dlg = page.getByRole('dialog')
-  await dlg.getByLabel('Datum', { exact: true }).fill(o.date)
+  await dlg.getByLabel('Startdatum', { exact: true }).fill(o.date)
   if (o.to) {
     await dlg.getByRole('button', { name: /Weitere Angaben/ }).click()
     await type(dlg.getByLabel(/Zielort/), o.to)
@@ -36,7 +36,7 @@ async function addTrip(page: Page, o: { date: string; odoStart?: string; odoEnd?
   for (const p of o.persons) await chip(dlg, p).click()
   // Werte müssen auch nach eintreffenden Echtzeit-Updates erhalten bleiben
   await page.waitForTimeout(300)
-  await expect(dlg.getByLabel('Datum', { exact: true })).toHaveValue(o.date)
+  await expect(dlg.getByLabel('Startdatum', { exact: true })).toHaveValue(o.date)
   if (o.odoStart) await expect(dlg.getByLabel(/Kilometerstand Beginn/)).toHaveValue(o.odoStart)
   if (o.odoEnd) await expect(dlg.getByLabel(/Kilometerstand Ende/)).toHaveValue(o.odoEnd)
   await dlg.getByRole('button', { name: 'Fahrt speichern' }).click()
