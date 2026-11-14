@@ -83,8 +83,10 @@ test('Vorauszahlungen: Daueraufträge, Anrechnung im Ausgleich, Bearbeiten, Lös
   await expect(page.getByText(/Zusammengeführt:/)).toBeVisible()
 
   await page.goto('/#/abrechnung')
-  const balance = page.locator('table').filter({ hasText: 'Saldo' })
-  const row = (n: string) => balance.locator('tbody tr').filter({ hasText: n })
+  const region = page.getByRole('region', { name: 'Salden je Person' })
+  const balance = region.locator('table').first()
+  // Zeilen der Personen (nicht die Zeilen eines aufgeklappten Rechenwegs)
+  const row = (n: string) => balance.locator(':scope > tbody > tr').filter({ has: page.getByRole('button', { name: new RegExp(`^${n}: Rechenweg`) }) })
   const transfers = page.locator('li').filter({ has: page.getByRole('button', { name: 'Als bezahlt erfassen' }) })
 
   // Ohne Abschläge: Konrad hat alles vorgestreckt
@@ -109,6 +111,30 @@ test('Vorauszahlungen: Daueraufträge, Anrechnung im Ausgleich, Bearbeiten, Lös
   await expect(row('Konrad')).toContainText(mobile ? 'Abschläge erhalten 3.000,00' : 'erhalten 3.000,00')
   await expect(transfers).toHaveCount(2)
   await expect(transfers.filter({ hasText: 'Samuel' })).toContainText('827,50')
+
+  // Rechenweg zum Saldo aufklappen
+  await balance.getByRole('button', { name: 'Konrad: Rechenweg anzeigen' }).click()
+  const way = region.locator('table table')
+  await expect(way).toContainText('Bezahlt')
+  await expect(way).toContainText('Leasingrate')
+  await expect(way).toContainText('10 Buchungen')
+  await expect(way).toContainText('+5.000,00')
+  await expect(way).toContainText('Kilometerkosten')
+  await expect(way).toContainText(/6\.500 km × 0,65\s€\/km/)
+  await expect(way).toContainText('−4.225,00')
+  await expect(way).toContainText('von Dennis')
+  await expect(way).toContainText('10 Abschläge')
+  await expect(way).toContainText('−2.000,00')
+  await expect(way.locator('tfoot')).toContainText('−1.025,00')
+  await expectAccessible(page, 'Rechenweg')
+  await balance.getByRole('button', { name: 'Konrad: Rechenweg ausblenden' }).click()
+  await expect(way).toHaveCount(0)
+  await row('Samuel').click()
+  await expect(way).toContainText('Direktkosten: Stellplatz')
+  await expect(way).toContainText('geteilt durch 2')
+  await expect(way.locator('tfoot')).toContainText('+827,50')
+  await row('Samuel').click()
+  await expect(way).toHaveCount(0)
 
   const advList = page.getByText('Vorauszahlungen im Zeitraum').locator('..')
   await expect(advList.getByRole('listitem')).toHaveCount(2)

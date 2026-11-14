@@ -1,12 +1,13 @@
 import { clsx } from 'clsx'
-import { useState } from 'react'
-import { ArrowRight, CheckCheck, HandCoins, Pencil, Plus, Repeat, Trash2 } from 'lucide-react'
+import { Fragment, useState } from 'react'
+import { ArrowRight, CheckCheck, ChevronDown, ChevronRight, HandCoins, Pencil, Plus, Repeat, Trash2 } from 'lucide-react'
 import type { Settlement } from '../lib/domain/settlement'
 import type { Payment, PaymentEntry, PaymentKind, Person } from '../lib/domain/types'
 import { deletePayment, restoreRecord, savePayment } from '../lib/store/repo'
 import { todayIso } from '../lib/domain/dates'
 import { describeRecurrence } from '../lib/domain/recurrence'
-import { formatDate, formatEuro } from '../lib/format'
+import { balanceBreakdown, type BalanceBreakdown } from '../lib/domain/breakdown'
+import { formatDate, formatEuro, formatKm, formatPricePerKm } from '../lib/format'
 import { Button, Card, CardTitle, Notice } from './ui'
 import { PaymentModal } from './PaymentModal'
 import { errorMessage, useFeedback } from './feedback-context'
@@ -31,6 +32,7 @@ export function BalancePanel({ s, persons, payments, periodLabel }: { s: Settlem
   const { toast, confirm } = useFeedback()
   const [payOpen, setPayOpen] = useState(false)
   const [payInit, setPayInit] = useState<Partial<Payment> | undefined>()
+  const [openPerson, setOpenPerson] = useState<string | null>(null)
   const name = (id: string) => persons.find((p) => p.id === id)?.name ?? 'Unbekannt'
   const b = s.balance
   const rows = [...b.balances].sort((x, y) => y.balanceCents - x.balanceCents)
@@ -81,7 +83,7 @@ export function BalancePanel({ s, persons, payments, periodLabel }: { s: Settlem
     <Card padded={false}>
       <div className="p-5 pb-3">
         <CardTitle
-          sub="Wer hat mehr bezahlt, als sein Anteil beträgt? Saldo = bezahlt − Anteil ± Vorauszahlungen ± Ausgleichszahlungen."
+          sub="Wer hat mehr bezahlt, als sein Anteil beträgt? Saldo = bezahlt − Anteil ± Vorauszahlungen ± Ausgleichszahlungen. Zeile anklicken für den Rechenweg."
           action={<Button size="sm" icon={<Plus className="h-4 w-4" />} onClick={() => { setPayInit(undefined); setPayOpen(true) }}>Zahlung erfassen</Button>}
         >
           <span className="flex items-center gap-2"><HandCoins className="h-5 w-5 text-brand-700" />Ausgleich</span>
@@ -108,26 +110,42 @@ export function BalancePanel({ s, persons, payments, periodLabel }: { s: Settlem
                 {rows.map((r) => {
                   const net = r.sentCents - r.receivedCents
                   const adv = r.advanceSentCents - r.advanceReceivedCents
+                  const open = openPerson === r.personId
+                  const toggle = () => setOpenPerson(open ? null : r.personId)
                   return (
-                    <tr key={r.personId}>
-                      <td className="px-4 py-3 font-medium text-slate-900">
-                        {name(r.personId)}
-                        {/* Schmale Bildschirme: Details unter dem Namen statt eigener Spalten */}
-                        <div className="tabular text-xs font-normal text-slate-500 sm:hidden">
-                          bezahlt {formatEuro(r.paidCents)} · Anteil {formatEuro(r.shareCents)}
-                          {adv !== 0 && <> · {adv > 0 ? 'vorausgezahlt' : 'Abschläge erhalten'} {formatEuro(Math.abs(adv))}</>}
-                          {net !== 0 && <> · Ausgleich {net > 0 ? 'gezahlt' : 'erhalten'} {formatEuro(Math.abs(net))}</>}
-                        </div>
-                      </td>
-                      <td className="tabular hidden px-4 py-3 text-right sm:table-cell">{formatEuro(r.paidCents)}</td>
-                      <td className="tabular hidden px-4 py-3 text-right sm:table-cell">{formatEuro(r.shareCents)}</td>
-                      {anyAdvance && <td className="tabular hidden px-4 py-3 text-right text-slate-500 sm:table-cell">{adv === 0 ? '–' : `${adv > 0 ? 'gezahlt' : 'erhalten'} ${formatEuro(Math.abs(adv))}`}</td>}
-                      <td className="tabular hidden px-4 py-3 text-right text-slate-500 sm:table-cell">{net === 0 ? '–' : `${net > 0 ? 'gezahlt' : 'erhalten'} ${formatEuro(Math.abs(net))}`}</td>
-                      <td className={clsx('tabular px-4 py-3 text-right font-semibold', r.balanceCents > 0 ? 'text-emerald-700' : r.balanceCents < 0 ? 'text-red-700' : 'text-slate-500')}>
-                        {r.balanceCents > 0 ? '+' : r.balanceCents < 0 ? '−' : ''}{formatEuro(Math.abs(r.balanceCents))}
-                        <div className="text-xs font-normal text-slate-500">{r.balanceCents > 0 ? 'bekommt' : r.balanceCents < 0 ? 'zahlt' : 'ausgeglichen'}</div>
-                      </td>
-                    </tr>
+                    <Fragment key={r.personId}>
+                      <tr className={clsx('cursor-pointer hover:bg-slate-50', open && 'bg-slate-50')} onClick={toggle}>
+                        <td className="px-4 py-3 font-medium text-slate-900">
+                          <button type="button" className="flex items-center gap-2 text-left" aria-expanded={open}
+                            aria-label={`${name(r.personId)}: Rechenweg ${open ? 'ausblenden' : 'anzeigen'}`}
+                            onClick={(e) => { e.stopPropagation(); toggle() }}>
+                            {open ? <ChevronDown className="h-4 w-4 text-slate-500" /> : <ChevronRight className="h-4 w-4 text-slate-500" />}
+                            {name(r.personId)}
+                          </button>
+                          {/* Schmale Bildschirme: Details unter dem Namen statt eigener Spalten */}
+                          <div className="tabular ml-6 text-xs font-normal text-slate-500 sm:hidden">
+                            bezahlt {formatEuro(r.paidCents)} · Anteil {formatEuro(r.shareCents)}
+                            {adv !== 0 && <> · {adv > 0 ? 'vorausgezahlt' : 'Abschläge erhalten'} {formatEuro(Math.abs(adv))}</>}
+                            {net !== 0 && <> · Ausgleich {net > 0 ? 'gezahlt' : 'erhalten'} {formatEuro(Math.abs(net))}</>}
+                          </div>
+                        </td>
+                        <td className="tabular hidden px-4 py-3 text-right sm:table-cell">{formatEuro(r.paidCents)}</td>
+                        <td className="tabular hidden px-4 py-3 text-right sm:table-cell">{formatEuro(r.shareCents)}</td>
+                        {anyAdvance && <td className="tabular hidden px-4 py-3 text-right text-slate-500 sm:table-cell">{adv === 0 ? '–' : `${adv > 0 ? 'gezahlt' : 'erhalten'} ${formatEuro(Math.abs(adv))}`}</td>}
+                        <td className="tabular hidden px-4 py-3 text-right text-slate-500 sm:table-cell">{net === 0 ? '–' : `${net > 0 ? 'gezahlt' : 'erhalten'} ${formatEuro(Math.abs(net))}`}</td>
+                        <td className={clsx('tabular px-4 py-3 text-right font-semibold', r.balanceCents > 0 ? 'text-emerald-700' : r.balanceCents < 0 ? 'text-red-700' : 'text-slate-500')}>
+                          {r.balanceCents > 0 ? '+' : r.balanceCents < 0 ? '−' : ''}{formatEuro(Math.abs(r.balanceCents))}
+                          <div className="text-xs font-normal text-slate-500">{r.balanceCents > 0 ? 'bekommt' : r.balanceCents < 0 ? 'zahlt' : 'ausgeglichen'}</div>
+                        </td>
+                      </tr>
+                      {open && (
+                        <tr className="bg-slate-50">
+                          <td colSpan={6} className="px-4 pb-4 pt-0">
+                            <BreakdownTable breakdown={balanceBreakdown(s, r.personId)} name={name} />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   )
                 })}
               </tbody>
@@ -197,6 +215,64 @@ function PaymentList({ title, groups, name, onEdit, onRemove }: {
           </li>
         ))}
       </ul>
+    </div>
+  )
+}
+
+const SECTIONS: [string, BalanceBreakdown['lines'][number]['type'][]][] = [
+  ['Bezahlt', ['paid']],
+  ['Kostenanteil', ['perKm', 'direct']],
+  ['Vorauszahlungen', ['advance']],
+  ['Ausgleichszahlungen', ['settlement']],
+]
+
+const signed = (cents: number) => `${cents > 0 ? '+' : cents < 0 ? '−' : ''}${formatEuro(Math.abs(cents))}`
+
+/** Rechenweg zum Saldo: jede Zeile mit Vorzeichen, die Summe ist der Saldo. */
+function BreakdownTable({ breakdown, name }: { breakdown: BalanceBreakdown; name: (id: string) => string }) {
+  const label = (l: BalanceBreakdown['lines'][number]): [string, string?] => {
+    const times = (n: number) => (n > 1 ? `${n} Buchungen` : undefined)
+    switch (l.type) {
+      case 'paid':
+        return [l.title, times(l.count)]
+      case 'perKm':
+        return ['Kilometerkosten', `${formatKm(l.km)} × ${formatPricePerKm(l.pricePerKm)}`]
+      case 'direct':
+        return [`Direktkosten: ${l.title}`, [`geteilt durch ${l.sharedBy}`, times(l.count)].filter(Boolean).join(' · ')]
+      case 'advance':
+        return [l.sent ? `an ${name(l.otherPersonId)}` : `von ${name(l.otherPersonId)}`, l.count > 1 ? `${l.count} Abschläge` : undefined]
+      case 'settlement':
+        return [l.sent ? `an ${name(l.otherPersonId)}` : `von ${name(l.otherPersonId)}`, formatDate(l.date)]
+    }
+  }
+  return (
+    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-surface">
+      <table className="w-full text-xs sm:text-sm">
+        {SECTIONS.map(([title, types]) => {
+          const lines = breakdown.lines.filter((l) => types.includes(l.type))
+          if (lines.length === 0) return null
+          return (
+            <tbody key={title} className="border-b border-slate-100">
+              <tr><th colSpan={2} className="px-3 pb-1 pt-2.5 text-left text-xs font-medium uppercase tracking-wide text-slate-500">{title}</th></tr>
+              {lines.map((l, i) => {
+                const [main, sub] = label(l)
+                return (
+                  <tr key={i}>
+                    <td className="px-3 py-1.5">{main}{sub && <span className="block text-xs text-slate-500">{sub}</span>}</td>
+                    <td className="tabular whitespace-nowrap px-3 py-1.5 text-right">{signed(l.cents)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          )
+        })}
+        <tfoot>
+          <tr className="font-semibold">
+            <td className="px-3 py-2">Saldo</td>
+            <td className={clsx('tabular px-3 py-2 text-right', breakdown.totalCents > 0 ? 'text-emerald-700' : breakdown.totalCents < 0 ? 'text-red-700' : 'text-slate-500')}>{signed(breakdown.totalCents)}</td>
+          </tr>
+        </tfoot>
+      </table>
     </div>
   )
 }

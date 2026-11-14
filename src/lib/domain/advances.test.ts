@@ -10,6 +10,7 @@ import { addPerson, deletePayment, saveExpense, savePayment, saveSettlementSnaps
 import { createBackup, parseBackup, restoreBackup } from '../io/backup'
 import { buildSettlementWorkbook, workbookToArray } from '../io/excelExport'
 import { computeBalances } from './balance'
+import { balanceBreakdown } from './breakdown'
 import { expandPayments } from './recurrence'
 import { buildSettlement } from './settlement'
 import { validatePayment } from './validation'
@@ -172,6 +173,34 @@ describe('Vorauszahlungen: ein Jahr mit sehr ungleicher Nutzung', () => {
 
   it('keine Hinweis-Meldung, wenn alle Abschläge in der Vergangenheit liegen', () => {
     expect(settle().notices.map((n) => n.code)).not.toContain('future-advances')
+  })
+
+  it('Rechenweg: Konrad – bezahlt, km-Anteil, erhaltene Abschläge ergeben den Saldo', () => {
+    const s = settle()
+    const r = balanceBreakdown(s, K)
+    expect(r.lines).toEqual([
+      { type: 'paid', expenseId: expect.any(String), title: 'Leasingrate', count: 12, cents: 600000 },
+      { type: 'paid', expenseId: expect.any(String), title: 'Versicherung', count: 12, cents: 120000 },
+      { type: 'perKm', km: 6500, pricePerKm: 0.75, cents: -487500 },
+      { type: 'advance', paymentId: expect.any(String), otherPersonId: D, sent: false, count: 12, cents: -288000 },
+      { type: 'advance', paymentId: expect.any(String), otherPersonId: S, sent: false, count: 12, cents: -144000 },
+    ])
+    expect(r.totalCents).toBe(-199500)
+  })
+
+  it('Rechenweg: Samuel – Stellplatz bezahlt, km- und Direktanteil, Abschläge und Ausgleich', async () => {
+    await savePayment({ kind: 'settlement', date: '2027-12-31', fromPersonId: K, toPersonId: S, amountCents: 100000 }, undefined, db)
+    const r = balanceBreakdown(settle(), S)
+    expect(r.lines.map((l) => [l.type, l.cents])).toEqual([
+      ['paid', 4500],
+      ['perKm', -22500],
+      ['direct', -2250],
+      ['advance', 144000],
+      ['settlement', -100000],
+    ])
+    expect(r.lines.find((l) => l.type === 'direct')).toMatchObject({ title: 'Stellplatz Gardasee', sharedBy: 2, count: 1 })
+    expect(r.lines.find((l) => l.type === 'settlement')).toMatchObject({ otherPersonId: K, sent: false, date: '2027-12-31' })
+    expect(r.totalCents).toBe(123750 - 100000)
   })
 
   it('Excel-Export enthält Vorauszahlungen in der Ausgleichstabelle und in der Zahlungsliste', () => {
@@ -351,6 +380,8 @@ describe('Zufällige Szenarien (300 Durchläufe)', () => {
       expect(total('advanceSentCents')).toBe(total('advanceReceivedCents'))
       expect(total('sentCents')).toBe(total('receivedCents'))
       for (const x of b.balances) expect(x.balanceCents).toBe(x.paidCents - x.shareCents + x.advanceSentCents - x.advanceReceivedCents + x.sentCents - x.receivedCents)
+      // Der Rechenweg ergibt für jede Person exakt ihren Saldo
+      for (const x of b.balances) expect(balanceBreakdown(s, x.personId).totalCents, `Lauf ${run}`).toBe(x.balanceCents)
 
       // Ohne die Zahlungen ändern sich die Salden genau um die Zahlungen – Anteile bleiben gleich.
       const without = buildSettlement({ trips, expenses, persons, payments: [] }, { period: YEAR_2027, today: '2027-12-31' })
