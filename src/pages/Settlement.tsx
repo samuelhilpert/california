@@ -55,6 +55,8 @@ export function SettlementPage() {
   const catMap = new Map(data.categories.map((c) => [c.id, c]))
   const tripMap = new Map(s.includedTrips.map((t) => [t.id, t]))
   const maxShare = Math.max(1, ...rows.map((r) => r.totalCents))
+  const hasFixed = s.trips.some((t) => t.fixedPriceCents != null)
+  const split = s.directCostCents > 0 || hasFixed
   const labels = { trips: periodLabel(period), costs: periodLabel(costPeriod ?? period) }
 
   const exportXlsx = () => {
@@ -135,8 +137,9 @@ export function SettlementPage() {
                   <th className="px-4 py-3">Person</th>
                   <th className="px-4 py-3 text-right">Anteilige Kilometer</th>
                   <th className="hidden px-4 py-3 text-right md:table-cell">Fahrten</th>
-                  {s.directCostCents > 0 && <th className="hidden px-4 py-3 text-right md:table-cell">Kilometerkosten</th>}
+                  {split && <th className="hidden px-4 py-3 text-right md:table-cell">Kilometerkosten</th>}
                   {s.directCostCents > 0 && <th className="hidden px-4 py-3 text-right md:table-cell">Direktkosten</th>}
+                  {hasFixed && <th className="hidden px-4 py-3 text-right md:table-cell">Festpreise</th>}
                   <th className="px-4 py-3 text-right">Kostenanteil</th>
                 </tr>
               </thead>
@@ -161,13 +164,14 @@ export function SettlementPage() {
                         </td>
                         <td className="tabular px-4 py-3 text-right">{formatKm(r.km)}</td>
                         <td className="tabular hidden px-4 py-3 text-right md:table-cell">{r.tripCount}</td>
-                        {s.directCostCents > 0 && <td className="tabular hidden px-4 py-3 text-right md:table-cell">{formatEuro(r.perKmCents)}</td>}
+                        {split && <td className="tabular hidden px-4 py-3 text-right md:table-cell">{formatEuro(r.perKmCents)}</td>}
                         {s.directCostCents > 0 && <td className="tabular hidden px-4 py-3 text-right md:table-cell">{formatEuro(r.directCents)}</td>}
+                        {hasFixed && <td className="tabular hidden px-4 py-3 text-right md:table-cell">{r.fixedCents === 0 ? '–' : formatEuro(r.fixedCents)}</td>}
                         <td className="tabular px-4 py-3 text-right text-base font-semibold text-slate-900">{formatEuro(r.totalCents)}</td>
                       </tr>
                       {open && (
                         <tr className="bg-slate-50">
-                          <td colSpan={6} className="px-4 pb-4 pt-0">
+                          <td colSpan={7} className="px-4 pb-4 pt-0">
                             <div className="overflow-x-auto rounded-lg border border-slate-200 bg-surface">
                               <table className="w-full text-xs sm:text-sm">
                                 <thead>
@@ -187,7 +191,16 @@ export function SettlementPage() {
                                     return (
                                       <tr key={t.tripId}>
                                         <td className="whitespace-nowrap px-3 py-2">{formatDate(trip?.startDate)}</td>
-                                        <td className="px-3 py-2 text-slate-600">{[trip?.from, trip?.to].filter(Boolean).join(' → ') || '–'}</td>
+                                        <td className="px-3 py-2 text-slate-600">
+                                          {[trip?.from, trip?.to].filter(Boolean).join(' → ') || '–'}
+                                          {sh.fixedCents != null && (
+                                            <div className="text-xs">
+                                              {sh.fixedCents > 0
+                                                ? `Festpreis ${formatEuro(t.fixedPriceCents!)} statt km-Anteil`
+                                                : `Festpreis-Fahrt von ${(trip?.personIds ?? []).map((id) => pName.get(id) ?? '?').join(', ')}: km angerechnet, ${formatEuro(-sh.fixedCents)} gutgeschrieben`}
+                                            </div>
+                                          )}
+                                        </td>
                                         <td className="tabular px-3 py-2 text-right">{formatKm(t.km)}</td>
                                         <td className="px-3 py-2 text-right" title={t.shares.map((x) => pName.get(x.personId)).join(', ')}>{t.shares.length}</td>
                                         <td className="tabular px-3 py-2 text-right">{formatKm(sh.km)}</td>
@@ -228,8 +241,9 @@ export function SettlementPage() {
                   <td className="px-4 py-3">Summe</td>
                   <td className="tabular px-4 py-3 text-right">{formatKm(s.totalKm)}</td>
                   <td className="tabular hidden px-4 py-3 text-right md:table-cell">{s.tripCount}</td>
-                  {s.directCostCents > 0 && <td className="tabular hidden px-4 py-3 text-right md:table-cell">{formatEuro(rows.reduce((a, r) => a + r.perKmCents, 0))}</td>}
+                  {split && <td className="tabular hidden px-4 py-3 text-right md:table-cell">{formatEuro(rows.reduce((a, r) => a + r.perKmCents, 0))}</td>}
                   {s.directCostCents > 0 && <td className="tabular hidden px-4 py-3 text-right md:table-cell">{formatEuro(rows.reduce((a, r) => a + r.directCents, 0))}</td>}
+                  {hasFixed && <td className="tabular hidden px-4 py-3 text-right md:table-cell">{formatEuro(rows.reduce((a, r) => a + r.fixedCents, 0))}</td>}
                   <td className="tabular px-4 py-3 text-right font-semibold">{formatEuro(s.distributedCents)}</td>
                 </tr>
               </tfoot>
@@ -268,7 +282,10 @@ export function SettlementPage() {
                           {(trip?.from || trip?.to) && <div className="text-xs text-slate-500">{[trip?.from, trip?.to].filter(Boolean).join(' → ')}</div>}
                         </td>
                         <td className="tabular px-4 py-2.5 text-right">{formatKm(t.km)}</td>
-                        <td className="tabular px-4 py-2.5 text-right font-medium">{formatEuro(t.costCents)}</td>
+                        <td className="tabular px-4 py-2.5 text-right font-medium">
+                          {formatEuro(t.costCents)}
+                          {t.fixedPriceCents != null && <div className="whitespace-nowrap text-xs font-normal text-slate-500">Festpreis {formatEuro(t.fixedPriceCents)}</div>}
+                        </td>
                         <td className="px-4 py-2.5">
                           <div className="flex flex-wrap gap-1">
                             {t.shares.map((x) => <PersonChip key={x.personId} id={x.personId} label={`${pName.get(x.personId) ?? '?'} ${formatEuro(x.cents)}`} />)}

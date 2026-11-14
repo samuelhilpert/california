@@ -10,6 +10,8 @@ type BreakdownLine =
   | { type: 'paid'; expenseId: string; title: string; count: number; cents: number }
   /** Anteil an den Kilometerkosten (negativ). */
   | { type: 'perKm'; km: number; pricePerKm: number | null; cents: number }
+  /** Festpreis-Fahrt: als Gast getragen (negativ) oder als Empfänger gutgeschrieben (positiv). */
+  | { type: 'fixed'; tripId: string; date: IsoDate; to?: string; guest: boolean; guestIds: string[]; cents: number }
   /** Anteil an direkt zugeordneten Kosten einer Ausgabe (negativ). */
   | { type: 'direct'; expenseId: string; title: string; count: number; sharedBy: number; cents: number }
   /** Vorauszahlungen eines Dauerauftrags bzw. einer Einzelzahlung: an jemanden (+) oder von jemandem (−). */
@@ -40,6 +42,13 @@ export function balanceBreakdown(s: Settlement, personId: string): BalanceBreakd
   // Kostenanteil: Kilometerkosten und Direktkosten
   const p = s.persons.find((x) => x.personId === personId)
   if (p && (p.perKmCents !== 0 || p.km > 0)) lines.push({ type: 'perKm', km: p.km, pricePerKm: s.pricePerKm, cents: -p.perKmCents })
+  const tripById = new Map(s.includedTrips.map((t) => [t.id, t]))
+  for (const t of s.trips) {
+    const sh = t.shares.find((x) => x.personId === personId && x.fixedCents)
+    const trip = tripById.get(t.tripId)
+    if (!sh || !trip) continue
+    lines.push({ type: 'fixed', tripId: t.tripId, date: trip.startDate, ...(trip.to ? { to: trip.to } : {}), guest: trip.personIds.includes(personId), guestIds: trip.personIds, cents: -sh.fixedCents! })
+  }
   const costById = new Map(s.costs.map((c) => [c.id, c]))
   const direct = new Map<string, Extract<BreakdownLine, { type: 'direct' }>>()
   for (const d of s.directShares) {

@@ -221,7 +221,7 @@ function PaymentList({ title, groups, name, onEdit, onRemove }: {
 
 const SECTIONS: [string, BalanceBreakdown['lines'][number]['type'][]][] = [
   ['Bezahlt', ['paid']],
-  ['Kostenanteil', ['perKm', 'direct']],
+  ['Kostenanteil', ['perKm', 'direct', 'fixed']],
   ['Vorauszahlungen', ['advance']],
   ['Ausgleichszahlungen', ['settlement']],
 ]
@@ -237,6 +237,12 @@ function BreakdownTable({ breakdown, name }: { breakdown: BalanceBreakdown; name
         return [l.title, times(l.count)]
       case 'perKm':
         return ['Kilometerkosten', `${formatKm(l.km)} × ${formatPricePerKm(l.pricePerKm)}`]
+      case 'fixed': {
+        const trip = [formatDate(l.date), l.to].filter(Boolean).join(' · ')
+        return l.guest
+          ? [`Festpreis-Fahrt ${trip}`]
+          : [`Festpreis von ${l.guestIds.map(name).join(', ')}`, `Fahrt ${trip} · die km sind in den Kilometerkosten enthalten`]
+      }
       case 'direct':
         return [`Direktkosten: ${l.title}`, [`geteilt durch ${l.sharedBy}`, times(l.count)].filter(Boolean).join(' · ')]
       case 'advance':

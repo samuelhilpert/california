@@ -6,8 +6,8 @@ import { findOdometerIssues } from '../lib/domain/tripChecks'
 import { validateTripForCalc } from '../lib/domain/settlement'
 import { buildTripsWorkbook, downloadWorkbook, invalidLabel } from '../lib/io/excelExport'
 import type { Trip } from '../lib/domain/types'
-import { formatDate, formatInt, formatKm } from '../lib/format'
-import { Button, Card, EmptyState, Input, Notice, PageHeader, SearchInput, Select } from '../components/ui'
+import { formatDate, formatEuro, formatInt, formatKm } from '../lib/format'
+import { Badge, Button, Card, EmptyState, Input, Notice, PageHeader, SearchInput, Select } from '../components/ui'
 import { TripFormModal } from '../components/TripForm'
 import { Loading } from '../components/Loading'
 import { collectYears } from '../lib/years'
@@ -216,7 +216,7 @@ export function TripsPage() {
                           {invalid && <div className="mt-0.5 inline-flex items-center gap-1 text-xs font-normal text-amber-700"><AlertTriangle className="h-3 w-3" />{invalidLabel(invalid)}</div>}
                         </td>
                         <td className="px-4 py-3 align-top">
-                          <div className="flex flex-wrap gap-1">{t.personIds.map((id) => <PersonChip key={id} id={id} />)}</div>
+                          <div className="flex flex-wrap gap-1">{t.personIds.map((id) => <PersonChip key={id} id={id} />)}{t.fixedPriceCents != null && <Badge tone="amber">Festpreis {formatEuro(t.fixedPriceCents)}</Badge>}</div>
                         </td>
                         <td className="whitespace-nowrap px-2 py-2 text-right align-top">
                           {pro && <Button variant="ghost" size="icon" onClick={() => setDetail(t)} aria-label="Fahrt-Details mit Karte" title="Details & Karte"><MapPinned className="h-4 w-4" /></Button>}
@@ -246,7 +246,7 @@ export function TripsPage() {
                       <span className="tabular font-semibold text-slate-900">{formatKm(t.km)}</span>
                     </div>
                     {(t.from || t.to) && <div className="mt-0.5 text-sm text-slate-600">{[t.from, t.to].filter(Boolean).join(' → ')}</div>}
-                    <div className="mt-2 flex flex-wrap gap-1">{t.personIds.map((id) => <PersonChip key={id} id={id} />)}</div>
+                    <div className="mt-2 flex flex-wrap gap-1">{t.personIds.map((id) => <PersonChip key={id} id={id} />)}{t.fixedPriceCents != null && <Badge tone="amber">Festpreis {formatEuro(t.fixedPriceCents)}</Badge>}</div>
                     {t.note && <div className="mt-1.5 text-xs text-slate-500">{t.note}</div>}
                   </div>
                   <div className="flex flex-col">

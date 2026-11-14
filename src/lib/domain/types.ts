@@ -27,6 +27,13 @@ export interface Trip {
   km: number
   /** Stabile Personen-IDs (nicht Namen). */
   personIds: string[]
+  /**
+   * Festpreis (nur Fahrten ohne registrierte Mitglieder, z. B. Gäste): Die Beteiligten tragen genau
+   * diesen Betrag. Kilometer und Fahrtkosten werden stattdessen den Empfängern angerechnet, die im
+   * Gegenzug den Festpreis gutgeschrieben bekommen – beides zu gleichen Teilen.
+   */
+  fixedPriceCents?: number
+  fixedPriceRecipientIds?: string[]
   note?: string
   /** Schlüssel zur Erkennung bereits importierter Datensätze. */
   importKey?: string

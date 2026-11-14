@@ -13,7 +13,7 @@ import { PersonAvatar } from './Person'
  * deaktivierte Personen (damit historische Zuordnungen sichtbar bleiben). Neue Personen können
  * direkt hier angelegt werden und sind sofort ausgewählt.
  */
-export function PersonMultiSelect({ persons, value, onChange, invalid }: { persons: Person[]; value: string[]; onChange: (ids: string[]) => void; invalid?: boolean }) {
+export function PersonMultiSelect({ persons, value, onChange, invalid, label = 'Beteiligte Personen' }: { persons: Person[]; value: string[]; onChange: (ids: string[]) => void; invalid?: boolean; label?: string }) {
   const { toast } = useFeedback()
   const [adding, setAdding] = useState(false)
   const [name, setName] = useState('')
@@ -42,7 +42,7 @@ export function PersonMultiSelect({ persons, value, onChange, invalid }: { perso
 
   return (
     <div className={clsx('rounded-lg border p-3', invalid ? 'border-red-400' : 'border-slate-200')}>
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Beteiligte Personen">
+      <div className="flex flex-wrap gap-2" role="group" aria-label={label}>
         {visible.map((p) => {
           const on = value.includes(p.id)
           return (
@@ -58,8 +58,8 @@ export function PersonMultiSelect({ persons, value, onChange, invalid }: { perso
             >
               <PersonAvatar id={p.id} name={p.name} size="sm" />
               {p.name}
-              {p.id === me?.id && <span className="text-xs font-normal text-slate-500">(du)</span>}
-              {!p.active && <span className="text-xs font-normal text-slate-500">(inaktiv)</span>}
+              {p.id === me?.id && <span className="text-xs font-normal text-slate-600">(du)</span>}
+              {!p.active && <span className="text-xs font-normal text-slate-600">(inaktiv)</span>}
               {on && <Check className="h-3.5 w-3.5" aria-hidden />}
             </button>
           )

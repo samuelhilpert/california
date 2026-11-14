@@ -7,6 +7,8 @@
  *  3. Kilometerpreis = kilometerbezogene Kosten / Gesamtkilometer.
  *  4. Fahrtkosten = Kilometer der Fahrt × Kilometerpreis (centgenau per Restbetragsverfahren).
  *  5. Fahrtkosten zu gleichen Teilen auf die Beteiligten der Fahrt verteilen (ebenfalls centgenau).
+ *     Festpreis-Fahrt: Die Beteiligten tragen den Festpreis; Kilometer und Fahrtkosten gehen an die
+ *     Empfänger, die den Festpreis gutgeschrieben bekommen (je zu gleichen Teilen).
  *  6. Direkt zugeordnete Kosten zu gleichen Teilen auf die ausdrücklich gewählten Personen verteilen.
  *  7. Anteile je Person summieren.
  */
@@ -20,12 +22,16 @@ import type { CostEntry, Expense, IsoDate, Payment, PaymentEntry, Person, Trip }
 import { formatDate, formatEuro, formatKm } from '../format'
 
 export type TripLike = Pick<Trip, 'id' | 'startDate' | 'km' | 'personIds'> &
-  Partial<Pick<Trip, 'endDate' | 'odoStart' | 'odoEnd'>>
+  Partial<Pick<Trip, 'endDate' | 'odoStart' | 'odoEnd' | 'fixedPriceCents' | 'fixedPriceRecipientIds'>>
 
 interface TripShare {
   personId: string
+  /** Angerechnete Kilometer (bei Festpreis-Fahrten: nur die Empfänger). */
   km: number
+  /** Anteil an der Fahrt insgesamt = Kilometerkosten + Festpreis-Anteil. */
   cents: number
+  /** Festpreis-Anteil: + trägt (Gast), − Gutschrift (Empfänger). */
+  fixedCents?: number
 }
 
 interface TripResult {
@@ -33,6 +39,8 @@ interface TripResult {
   km: number
   costCents: number
   shares: TripShare[]
+  /** Nur bei Festpreis-Fahrten. */
+  fixedPriceCents?: number
 }
 
 interface DirectShare {
@@ -48,6 +56,8 @@ interface PersonResult {
   tripCount: number
   perKmCents: number
   directCents: number
+  /** Festpreise: + getragen (Gast), − gutgeschrieben (Empfänger). */
+  fixedCents: number
   totalCents: number
   tripIds: string[]
 }
@@ -60,7 +70,7 @@ interface CategoryResult {
   entryCount: number
 }
 
-type InvalidReason = 'invalid-km' | 'no-persons' | 'duplicate-persons' | 'odometer'
+type InvalidReason = 'invalid-km' | 'no-persons' | 'duplicate-persons' | 'odometer' | 'fixed-price'
 
 interface InvalidTrip {
   tripId: string
@@ -96,6 +106,11 @@ export function validateTripForCalc(t: TripLike): InvalidReason | null {
   if (!t.personIds || t.personIds.length === 0) return 'no-persons'
   if (new Set(t.personIds).size !== t.personIds.length) return 'duplicate-persons'
   if (t.odoStart != null && t.odoEnd != null && t.odoEnd < t.odoStart) return 'odometer'
+  if (t.fixedPriceCents != null) {
+    const r = t.fixedPriceRecipientIds ?? []
+    if (!Number.isInteger(t.fixedPriceCents) || t.fixedPriceCents <= 0) return 'fixed-price'
+    if (r.length === 0 || new Set(r).size !== r.length || r.some((id) => t.personIds.includes(id))) return 'fixed-price'
+  }
   return null
 }
 
@@ -122,7 +137,7 @@ export function computeDistribution(trips: TripLike[], costs: CostEntry[]): Dist
   const person = (id: string) => {
     let p = personMap.get(id)
     if (!p) {
-      p = { personId: id, km: 0, tripCount: 0, perKmCents: 0, directCents: 0, totalCents: 0, tripIds: [] }
+      p = { personId: id, km: 0, tripCount: 0, perKmCents: 0, directCents: 0, fixedCents: 0, totalCents: 0, tripIds: [] }
       personMap.set(id, p)
     }
     return p
@@ -138,21 +153,39 @@ export function computeDistribution(trips: TripLike[], costs: CostEntry[]): Dist
   if (!canDistributeKm) undistributedCents += perKmCostCents
 
   valid.forEach((t, idx) => {
-    const n = t.personIds.length
-    const shares = allocateCents(tripCents[idx], t.personIds.map(() => 1), idx)
-    const result: TripResult = {
-      tripId: t.id,
-      km: t.km,
-      costCents: tripCents[idx],
-      shares: t.personIds.map((pid, i) => ({ personId: pid, km: t.km / n, cents: shares[i] })),
-    }
-    tripResults.push(result)
-    for (const s of result.shares) {
-      const p = person(s.personId)
-      p.km += s.km
-      p.perKmCents += s.cents
+    for (const pid of t.personIds) {
+      const p = person(pid)
       p.tripCount += 1
       p.tripIds.push(t.id)
+    }
+    if (t.fixedPriceCents != null) {
+      // Festpreis: Beteiligte tragen den Festpreis, Empfänger bekommen Kilometer, Fahrtkosten und Gutschrift.
+      const fixed = t.fixedPriceCents
+      const recipients = t.fixedPriceRecipientIds!
+      const guestParts = allocateCents(fixed, t.personIds.map(() => 1), idx)
+      const costParts = allocateCents(tripCents[idx], recipients.map(() => 1), idx)
+      const creditParts = allocateCents(fixed, recipients.map(() => 1), idx)
+      const shares: TripShare[] = [
+        ...t.personIds.map((pid, i) => ({ personId: pid, km: 0, cents: guestParts[i], fixedCents: guestParts[i] })),
+        ...recipients.map((pid, i) => ({ personId: pid, km: t.km / recipients.length, cents: costParts[i] - creditParts[i], fixedCents: -creditParts[i] })),
+      ]
+      tripResults.push({ tripId: t.id, km: t.km, costCents: tripCents[idx], shares, fixedPriceCents: fixed })
+      for (const sh of shares) {
+        const p = person(sh.personId)
+        p.km += sh.km
+        p.perKmCents += sh.cents - sh.fixedCents!
+        p.fixedCents += sh.fixedCents!
+      }
+      return
+    }
+    const n = t.personIds.length
+    const parts = allocateCents(tripCents[idx], t.personIds.map(() => 1), idx)
+    const shares = t.personIds.map((pid, i) => ({ personId: pid, km: t.km / n, cents: parts[i] }))
+    tripResults.push({ tripId: t.id, km: t.km, costCents: tripCents[idx], shares })
+    for (const sh of shares) {
+      const p = person(sh.personId)
+      p.km += sh.km
+      p.perKmCents += sh.cents
     }
   })
 
@@ -176,7 +209,7 @@ export function computeDistribution(trips: TripLike[], costs: CostEntry[]): Dist
   const persons = [...personMap.values()].map((p) => ({
     ...p,
     km: round6(p.km),
-    totalCents: p.perKmCents + p.directCents,
+    totalCents: p.perKmCents + p.directCents + p.fixedCents,
   }))
 
   // --- Kategorien ---

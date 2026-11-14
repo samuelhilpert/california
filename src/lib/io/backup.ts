@@ -21,6 +21,8 @@ const tripSchema = z.object({
   odoEnd: z.number().finite().optional(),
   km: z.number().finite().nonnegative(),
   personIds: z.array(z.string()).min(1),
+  fixedPriceCents: z.number().int().positive().optional(),
+  fixedPriceRecipientIds: z.array(z.string()).optional(),
   note: z.string().optional(),
   importKey: z.string().optional(),
   createdAt: stamp,
@@ -178,7 +180,7 @@ function checkReferences(d: AppData) {
   const personIds = new Set(d.persons.map((p) => p.id))
   const categoryIds = new Set([...d.categories.map((c) => c.id), ...DEFAULT_CATEGORIES.map((c) => c.id)])
   for (const t of d.trips) {
-    if (t.personIds.some((id) => !personIds.has(id))) throw new BackupError(`Fahrt vom ${t.startDate} verweist auf eine unbekannte Person.`)
+    if ([...t.personIds, ...(t.fixedPriceRecipientIds ?? [])].some((id) => !personIds.has(id))) throw new BackupError(`Fahrt vom ${t.startDate} verweist auf eine unbekannte Person.`)
   }
   for (const e of d.expenses) {
     if (!categoryIds.has(e.categoryId)) throw new BackupError(`Ausgabe „${e.title}“ verweist auf eine unbekannte Kategorie.`)
@@ -254,7 +256,11 @@ export function planMerge(current: AppData, backup: BackupFile): RestorePlan {
   const data: AppData = {
     ...backup.data,
     persons: backup.data.persons.filter((p) => !personIdMap.has(p.id)),
-    trips: backup.data.trips.map((t) => ({ ...t, personIds: [...new Set(t.personIds.map(mapP))] })),
+    trips: backup.data.trips.map((t) => ({
+      ...t,
+      personIds: [...new Set(t.personIds.map(mapP))],
+      ...(t.fixedPriceRecipientIds ? { fixedPriceRecipientIds: [...new Set(t.fixedPriceRecipientIds.map(mapP))] } : {}),
+    })),
     expenses: backup.data.expenses.map((e) => ({
       ...e,
       ...(e.directPersonIds ? { directPersonIds: [...new Set(e.directPersonIds.map(mapP))] } : {}),

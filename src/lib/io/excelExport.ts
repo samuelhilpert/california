@@ -46,15 +46,16 @@ function tripsSheet(trips: Trip[], persons: Person[]): XLSX.WorkSheet {
   const pm = new Map(persons.map((p) => [p.id, p]))
   const sorted = [...trips].sort((a, b) => (a.startDate < b.startDate ? -1 : a.startDate > b.startDate ? 1 : 0))
   const rows: CellValue[][] = [
-    ['Von', 'Bis', 'Startort', 'Zielort', 'Zwischenstationen', 'Kilometerstand Anfang', 'Kilometerstand Ende', 'gefahrene Kilometer', 'Wer', 'Anzahl Personen', 'Notiz'],
+    ['Von', 'Bis', 'Startort', 'Zielort', 'Zwischenstationen', 'Kilometerstand Anfang', 'Kilometerstand Ende', 'gefahrene Kilometer', 'Wer', 'Anzahl Personen', 'Festpreis', 'Festpreis an', 'Notiz'],
     ...sorted.map((t) => [
       date(t.startDate), date(t.endDate), t.from ?? null, t.to ?? null, t.stops?.join(', ') ?? null,
-      t.odoStart ?? null, t.odoEnd ?? null, km(t.km), names(t.personIds, pm), t.personIds.length, t.note ?? null,
+      t.odoStart ?? null, t.odoEnd ?? null, km(t.km), names(t.personIds, pm), t.personIds.length,
+      t.fixedPriceCents != null ? eur(t.fixedPriceCents) : null, t.fixedPriceRecipientIds ? names(t.fixedPriceRecipientIds, pm) : null, t.note ?? null,
     ]),
     [],
-    ['Summe', null, null, null, null, null, null, km(sorted.reduce((s, t) => s + t.km, 0)), null, null, `${sorted.length} Fahrten`],
+    ['Summe', null, null, null, null, null, null, km(sorted.reduce((s, t) => s + t.km, 0)), null, null, null, null, `${sorted.length} Fahrten`],
   ]
-  return sheet(rows, [12, 12, 18, 18, 28, 20, 20, 18, 30, 15, 30])
+  return sheet(rows, [12, 12, 18, 18, 28, 20, 20, 18, 30, 15, 12, 24, 30])
 }
 
 function expensesSheet(expenses: Expense[], categories: Category[], persons: Person[]): XLSX.WorkSheet {
@@ -154,11 +155,11 @@ export function buildSettlementWorkbook(s: Settlement, data: { persons: Person[]
 
   // Personenanteile
   const personSheet: CellValue[][] = [
-    ['Person', 'Status', 'Fahrten', 'Anteilige Kilometer', 'Anteil Kilometerkosten', 'Anteil Direktkosten', 'Kostenanteil gesamt'],
-    ...rows.map((r) => [r.name, r.active ? 'aktiv' : 'deaktiviert', r.tripCount, km(r.km), eur(r.perKmCents), eur(r.directCents), eur(r.totalCents)]),
-    ['Summe', null, null, km(rows.reduce((a, r) => a + r.km, 0)), eur(rows.reduce((a, r) => a + r.perKmCents, 0)), eur(rows.reduce((a, r) => a + r.directCents, 0)), eur(s.distributedCents)],
+    ['Person', 'Status', 'Fahrten', 'Anteilige Kilometer', 'Anteil Kilometerkosten', 'Anteil Direktkosten', 'Festpreise (+ getragen / − erhalten)', 'Kostenanteil gesamt'],
+    ...rows.map((r) => [r.name, r.active ? 'aktiv' : 'deaktiviert', r.tripCount, km(r.km), eur(r.perKmCents), eur(r.directCents), eur(r.fixedCents), eur(r.totalCents)]),
+    ['Summe', null, null, km(rows.reduce((a, r) => a + r.km, 0)), eur(rows.reduce((a, r) => a + r.perKmCents, 0)), eur(rows.reduce((a, r) => a + r.directCents, 0)), eur(rows.reduce((a, r) => a + r.fixedCents, 0)), eur(s.distributedCents)],
   ]
-  XLSX.utils.book_append_sheet(wb, sheet(personSheet, [22, 12, 10, 20, 22, 20, 20]), 'Personenanteile')
+  XLSX.utils.book_append_sheet(wb, sheet(personSheet, [22, 12, 10, 20, 22, 20, 26, 20]), 'Personenanteile')
 
   // Ausgleich
   const bal = s.balance
@@ -177,15 +178,15 @@ export function buildSettlementWorkbook(s: Settlement, data: { persons: Person[]
   XLSX.utils.book_append_sheet(wb, sheet(balanceRows, [26, 14, 14, 20, 20, 16, 16, 24]), 'Ausgleich')
 
   // Fahrten
-  const tripRows: CellValue[][] = [['Datum', 'Bis', 'Strecke', 'Kilometer', 'Fahrtkosten', 'Beteiligte', 'Person', 'Anteilige km', 'Anteil']]
+  const tripRows: CellValue[][] = [['Datum', 'Bis', 'Strecke', 'Kilometer', 'Fahrtkosten', 'Festpreis', 'Beteiligte', 'Person', 'Anteilige km', 'Anteil']]
   for (const tr of s.trips) {
     const t = tripMap.get(tr.tripId)
     const route = [t?.from, t?.to].filter(Boolean).join(' → ')
     tr.shares.forEach((sh, i) => {
       tripRows.push(
         i === 0
-          ? [date(t?.startDate), date(t?.endDate), route || null, km(tr.km), eur(tr.costCents), names(t?.personIds ?? [], pm), pm.get(sh.personId)?.name ?? 'Unbekannt', km(sh.km), eur(sh.cents)]
-          : [null, null, null, null, null, null, pm.get(sh.personId)?.name ?? 'Unbekannt', km(sh.km), eur(sh.cents)],
+          ? [date(t?.startDate), date(t?.endDate), route || null, km(tr.km), eur(tr.costCents), tr.fixedPriceCents != null ? eur(tr.fixedPriceCents) : null, names(t?.personIds ?? [], pm), pm.get(sh.personId)?.name ?? 'Unbekannt', km(sh.km), eur(sh.cents)]
+          : [null, null, null, null, null, null, null, pm.get(sh.personId)?.name ?? 'Unbekannt', km(sh.km), eur(sh.cents)],
       )
     })
   }
@@ -197,7 +198,7 @@ export function buildSettlementWorkbook(s: Settlement, data: { persons: Person[]
       tripRows.push([date(t?.startDate), null, null, t ? km(t.km) : null, null, names(t?.personIds ?? [], pm), invalidLabel(it.reason)])
     }
   }
-  XLSX.utils.book_append_sheet(wb, sheet(tripRows, [12, 12, 26, 12, 14, 30, 18, 14, 14]), 'Fahrten')
+  XLSX.utils.book_append_sheet(wb, sheet(tripRows, [12, 12, 26, 12, 14, 12, 30, 18, 14, 14]), 'Fahrten')
 
   // Kosten
   const costRows: CellValue[][] = [
@@ -247,6 +248,7 @@ export function invalidLabel(reason: string): string {
     case 'no-persons': return 'Keine beteiligten Personen'
     case 'duplicate-persons': return 'Person doppelt eingetragen'
     case 'odometer': return 'Kilometerstand Ende kleiner als Anfang'
+    case 'fixed-price': return 'Festpreis ohne gültige Empfänger'
     default: return reason
   }
 }

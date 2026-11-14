@@ -40,7 +40,10 @@ export function resolveTripKm(odoStart?: number, odoEnd?: number, manualKm?: num
   return manualKm
 }
 
-export function validateTrip(d: Partial<TripDraft>): FieldErrors {
+/**
+ * @param registeredIds Personen mit verknüpftem Konto – ein Festpreis ist nur ohne sie möglich.
+ */
+export function validateTrip(d: Partial<TripDraft>, registeredIds?: ReadonlySet<string>): FieldErrors {
   const e: FieldErrors = {}
   if (!d.startDate || !isIsoDate(d.startDate)) e.startDate = 'Bitte ein gültiges Startdatum angeben.'
   if (!d.endDate || !isIsoDate(d.endDate)) e.endDate = 'Bitte ein gültiges Enddatum angeben.'
@@ -65,6 +68,17 @@ export function validateTrip(d: Partial<TripDraft>): FieldErrors {
   if (d.stops && (d.stops.length > 30 || d.stops.some((s) => !s.trim() || s.length > 120))) e.stops = 'Bitte höchstens 30 Stationen mit je bis zu 120 Zeichen angeben.'
   if (!d.personIds || d.personIds.length === 0) e.personIds = 'Bitte mindestens eine beteiligte Person auswählen.'
   else if (new Set(d.personIds).size !== d.personIds.length) e.personIds = 'Eine Person wurde doppelt ausgewählt.'
+  if (d.fixedPriceCents != null) {
+    const r = d.fixedPriceRecipientIds ?? []
+    if (!Number.isInteger(d.fixedPriceCents) || d.fixedPriceCents <= 0) e.fixedPriceCents = 'Bitte einen Festpreis eingeben, z. B. 100,00.'
+    else if (d.fixedPriceCents > 100_000_000) e.fixedPriceCents = 'Der Festpreis ist unplausibel hoch.'
+    if (r.length === 0) e.fixedPriceRecipientIds = 'Bitte mindestens eine Person wählen, die Kilometer und Festpreis bekommt.'
+    else if (new Set(r).size !== r.length) e.fixedPriceRecipientIds = 'Eine Person wurde doppelt ausgewählt.'
+    else if (d.personIds?.some((id) => r.includes(id))) e.fixedPriceRecipientIds = 'Wer gefahren ist, kann den Festpreis nicht selbst bekommen.'
+    if (registeredIds && d.personIds?.some((id) => registeredIds.has(id))) e.fixedPrice = 'Ein Festpreis ist nur möglich, wenn kein registriertes Mitglied gefahren ist.'
+  } else if (d.fixedPriceRecipientIds?.length) {
+    e.fixedPriceCents = 'Bitte einen Festpreis eingeben, z. B. 100,00.'
+  }
   return e
 }
 

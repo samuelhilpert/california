@@ -137,13 +137,18 @@ export async function deletePerson(id: string, store: DataStore = activeStore())
 }
 
 // ---------- Fahrten ----------
+/** Personen mit verknüpftem Konto (registrierte Mitglieder). */
+export function registeredPersonIds(store: DataStore = activeStore()): Set<string> {
+  return new Set(store.getData().persons.filter((p) => p.email).map((p) => p.id))
+}
+
 export async function saveTrip(draft: TripDraft, id?: string, store: DataStore = activeStore()): Promise<Trip> {
   const d = clean(draft)
   if (d.stops) {
     d.stops = d.stops.map((s) => s.trim()).filter(Boolean)
     if (d.stops.length === 0) delete d.stops
   }
-  const errors = validateTrip(d)
+  const errors = validateTrip(d, registeredPersonIds(store))
   if (hasErrors(errors)) throw new ValidationError(errors)
   const now = nowStamp()
   let trip: Trip

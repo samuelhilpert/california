@@ -345,7 +345,11 @@ describe('Zufällige Szenarien (300 Durchläufe)', () => {
       const weighted = ['k', 'k', 'k', 'k', 'd', 'd', 's', 'gast']
       const trips = Array.from({ length: Math.floor(r() * 25) }, (_, i) => {
         const ps = [...new Set(Array.from({ length: 1 + Math.floor(r() * 3) }, () => pick(weighted)))]
-        return { id: `t${i}`, startDate: day(), endDate: '2027-12-31', km: Math.round(r() * 300000) / 100, personIds: ps, createdAt: '', updatedAt: '' }
+        // Reine Gastfahrten bekommen oft einen Festpreis an zufällige Mitglieder
+        const fixed = ps.every((p) => p === 'gast') && r() < 0.6
+          ? { fixedPriceCents: 1 + Math.floor(r() * 40000), fixedPriceRecipientIds: [...new Set(Array.from({ length: 1 + Math.floor(r() * 3) }, () => pick(['k', 'd', 's'])))] }
+          : {}
+        return { id: `t${i}`, startDate: day(), endDate: '2027-12-31', km: Math.round(r() * 300000) / 100, personIds: ps, ...fixed, createdAt: '', updatedAt: '' }
       })
       const expenses = Array.from({ length: 1 + Math.floor(r() * 6) }, (_, i) => {
         const direct = r() < 0.25
@@ -382,6 +386,16 @@ describe('Zufällige Szenarien (300 Durchläufe)', () => {
       for (const x of b.balances) expect(x.balanceCents).toBe(x.paidCents - x.shareCents + x.advanceSentCents - x.advanceReceivedCents + x.sentCents - x.receivedCents)
       // Der Rechenweg ergibt für jede Person exakt ihren Saldo
       for (const x of b.balances) expect(balanceBreakdown(s, x.personId).totalCents, `Lauf ${run}`).toBe(x.balanceCents)
+      // Festpreise verschieben nur Geld: Summe 0; Fahrende tragen genau den Festpreis, die Fahrt kostet ihre km-Kosten
+      expect(s.persons.reduce((a, p) => a + p.fixedCents, 0)).toBe(0)
+      for (const t of s.trips) {
+        expect(t.shares.reduce((a, x) => a + x.cents, 0), `Lauf ${run}`).toBe(t.costCents)
+        if (t.fixedPriceCents != null) {
+          const guests = t.shares.filter((x) => x.km === 0 && x.fixedCents! > 0)
+          expect(guests.reduce((a, x) => a + x.cents, 0)).toBe(t.fixedPriceCents)
+          expect(t.shares.filter((x) => x.fixedCents! < 0).reduce((a, x) => a + x.km, 0)).toBeCloseTo(t.km, 6)
+        }
+      }
 
       // Ohne die Zahlungen ändern sich die Salden genau um die Zahlungen – Anteile bleiben gleich.
       const without = buildSettlement({ trips, expenses, persons, payments: [] }, { period: YEAR_2027, today: '2027-12-31' })

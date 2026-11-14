@@ -1,13 +1,14 @@
+import { clsx } from 'clsx'
 import { useMemo, useState } from 'react'
 import { ArrowRight, Calculator } from 'lucide-react'
 import type { Person, SettlementSnapshot, Trip } from '../lib/domain/types'
 import { findSimilarTrips } from '../lib/domain/tripChecks'
 import { inRange, resolvePeriod } from '../lib/domain/period'
-import { parseNumberInput } from '../lib/domain/money'
+import { parseEuroInput, parseNumberInput } from '../lib/domain/money'
 import { resolveTripKm, validateTrip, hasErrors, type FieldErrors, type TripDraft } from '../lib/domain/validation'
-import { saveTrip, ValidationError } from '../lib/store/repo'
+import { registeredPersonIds, saveTrip, ValidationError } from '../lib/store/repo'
 import { todayIso } from '../lib/domain/dates'
-import { formatDate, formatInt, formatKm, numberToInput } from '../lib/format'
+import { centsToInput, formatDate, formatEuro, formatInt, formatKm, numberToInput } from '../lib/format'
 import { Button, Disclosure, Field, Input, Modal, Notice, Textarea } from './ui'
 import { PersonMultiSelect } from './PersonMultiSelect'
 import { errorMessage, useFeedback } from './feedback-context'
@@ -59,6 +60,10 @@ function TripForm({ onClose, trip, persons, trips, settlements = [], prefill, on
   const [kmOnly, setKmOnly] = useState(init != null && init.km != null && init.odoStart == null && init.odoEnd == null)
   // Neue Fahrt: Wer sie einträgt, ist meist auch gefahren.
   const [personIds, setPersonIds] = useState<string[]>(init?.personIds ?? (!init && me ? [me.id] : []))
+  // Festpreis (nur Gäste): Kilometer und Fahrtkosten gehen an die Empfänger, die dafür den Festpreis bekommen
+  const [fixed, setFixed] = useState(init?.fixedPriceCents != null)
+  const [fixedAmount, setFixedAmount] = useState(centsToInput(init?.fixedPriceCents))
+  const [recipientIds, setRecipientIds] = useState<string[]>(init?.fixedPriceRecipientIds ?? [])
   const [note, setNote] = useState(init?.note ?? '')
   const [moreOpen, setMoreOpen] = useState(!!(init?.from || init?.to || init?.note || init?.stops?.length))
   const [errors, setErrors] = useState<FieldErrors>({})
@@ -70,10 +75,18 @@ function TripForm({ onClose, trip, persons, trips, settlements = [], prefill, on
   const autoKm = o1 != null && o2 != null
   const km = resolveTripKm(o1 ?? undefined, o2 ?? undefined, manual ?? undefined)
 
+  const registered = registeredPersonIds()
+  const memberDrove = personIds.some((id) => registered.has(id))
+  const fixedCents = fixed ? parseEuroInput(fixedAmount) : undefined
+  const recipientCandidates = persons.filter((p) => !personIds.includes(p.id))
+  // Wer selbst gefahren ist, kann nicht Empfänger sein
+  const recipients = recipientIds.filter((id) => !personIds.includes(id))
+
   const closedIn = settlements.filter((st) => st.period.kind !== 'all' && startDate && inRange(startDate, resolvePeriod(st.period)))
 
   const buildDraft = (): { draft: TripDraft; parseErrors: FieldErrors } => {
     const parseErrors: FieldErrors = {}
+    if (fixed && fixedAmount.trim() && fixedCents == null) parseErrors.fixedPriceCents = 'Bitte einen gültigen Betrag eingeben, z. B. 100,00.'
     if (kmOnly) {
       if (manual === null) parseErrors.km = 'Bitte eine Zahl eingeben, z. B. 125 oder 12,5.'
     } else {
@@ -96,6 +109,8 @@ function TripForm({ onClose, trip, persons, trips, settlements = [], prefill, on
         odoEnd: keepPartialOdo ? init.odoEnd : (o2 ?? undefined),
         km: km as number,
         personIds,
+        fixedPriceCents: fixed ? (fixedCents ?? NaN) : undefined,
+        fixedPriceRecipientIds: fixed ? recipients : undefined,
         note: note || undefined,
       },
       parseErrors,
@@ -104,7 +119,7 @@ function TripForm({ onClose, trip, persons, trips, settlements = [], prefill, on
 
   const submit = async () => {
     const { draft, parseErrors } = buildDraft()
-    const all = { ...validateTrip(draft), ...parseErrors }
+    const all = { ...validateTrip(draft, registered), ...parseErrors }
     // Fehlt ein Kilometerstand, steht der Hinweis schon am Feld – kein doppelter Kilometer-Fehler.
     if (!kmOnly && (all.odoStart || all.odoEnd)) delete all.km
     if (hasErrors(all) && (all.from || all.to || all.note || all.stops)) setMoreOpen(true)
@@ -228,6 +243,34 @@ function TripForm({ onClose, trip, persons, trips, settlements = [], prefill, on
         <Field label="Wer ist gefahren?" error={errors.personIds} hint="Die Kosten der Fahrt werden gleichmäßig auf alle Ausgewählten verteilt.">
           <PersonMultiSelect persons={persons} value={personIds} onChange={setPersonIds} invalid={!!errors.personIds} />
         </Field>
+
+        <div className="grid gap-4 rounded-xl border border-slate-200 p-4">
+          <label className={clsx('flex items-start gap-2 text-sm', memberDrove && !fixed ? 'text-slate-500' : 'text-slate-800')}>
+            <input type="checkbox" className="mt-0.5 h-4 w-4 accent-brand-700" checked={fixed} disabled={memberDrove && !fixed} onChange={(e) => setFixed(e.target.checked)} />
+            <span>
+              <span className="font-medium">Festpreis statt Abrechnung nach km</span>
+              <span className="block text-xs text-slate-500">
+                {memberDrove && !fixed ? 'Nur möglich, wenn kein registriertes Mitglied gefahren ist (z. B. bei Gästen).' : 'Die Fahrenden zahlen einen festen Betrag. Kilometer und Fahrtkosten werden stattdessen den ausgewählten Personen angerechnet, die dafür den Festpreis bekommen.'}
+              </span>
+            </span>
+          </label>
+          {errors.fixedPrice && <p className="text-sm text-red-600" role="alert">{errors.fixedPrice}</p>}
+          {fixed && (
+            <>
+              <Field label="Festpreis" htmlFor="t-fixed" error={errors.fixedPriceCents} className="sm:max-w-[50%]">
+                <Input id="t-fixed" inputMode="decimal" value={fixedAmount} onChange={(e) => setFixedAmount(e.target.value)} suffix="€" placeholder="0,00" invalid={!!errors.fixedPriceCents} />
+              </Field>
+              <Field label="Wer bekommt die Kilometer und das Geld?" error={errors.fixedPriceRecipientIds} hint="Kilometer und Festpreis werden zu gleichen Teilen verteilt.">
+                <PersonMultiSelect persons={recipientCandidates} value={recipients} onChange={setRecipientIds} invalid={!!errors.fixedPriceRecipientIds} label="Empfänger des Festpreises" />
+              </Field>
+              {km != null && km > 0 && fixedCents != null && fixedCents > 0 && recipients.length > 0 && (
+                <p className="text-sm text-slate-600">
+                  Je ausgewählte Person: {formatKm(km / recipients.length)} angerechnet und {formatEuro(Math.floor(fixedCents / recipients.length))}{fixedCents % recipients.length ? ' (± 1 Cent)' : ''} gutgeschrieben.
+                </p>
+              )}
+            </>
+          )}
+        </div>
 
         <Disclosure label="Weitere Angaben (Strecke, Notiz)" open={moreOpen} onToggle={setMoreOpen}>
           <div className="grid gap-4">

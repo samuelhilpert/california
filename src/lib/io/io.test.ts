@@ -49,8 +49,8 @@ describe('Excel-Export', () => {
     expect(wb.SheetNames).toEqual(['Übersicht', 'Personenanteile', 'Ausgleich', 'Fahrten', 'Kosten', 'Berechnungsgrundlagen'])
     const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets['Personenanteile'], { header: 1 })
     const sumRow = rows.find((r) => r[0] === 'Summe')!
-    expect(sumRow[6]).toBeCloseTo(100.01, 6)
-    const shares = rows.slice(1, 3).map((r) => Math.round(Number(r[6]) * 100)).sort()
+    expect(sumRow[7]).toBeCloseTo(100.01, 6)
+    const shares = rows.slice(1, 3).map((r) => Math.round(Number(r[7]) * 100)).sort()
     expect(shares).toEqual([5000, 5001])
   })
 })
