@@ -22,7 +22,7 @@ export function PeoplePage() {
   const [renameError, setRenameError] = useState<string>()
   const today = todayIso()
 
-  const s = useMemo(() => (data ? buildSettlement(data, { period: { kind: 'all' }, today }) : undefined), [data, today])
+  const s = useMemo(() => (data ? buildSettlement(data, { period: { kind: 'until', to: today }, today }) : undefined), [data, today])
   if (!data || !s) return <Loading />
 
   const usage = (id: string) => ({
@@ -90,7 +90,7 @@ export function PeoplePage() {
                 <div className="flex items-center gap-2 font-medium text-slate-900">{p.name}{p.email ? <Badge tone="brand">Mitglied</Badge> : <Badge>ohne Konto</Badge>}{!p.active && <Badge>deaktiviert</Badge>}</div>
                 <div className="text-xs text-slate-500">
                   {u.trips} Fahrt(en){u.expenses > 0 && ` · ${u.expenses} Ausgabe(n)`}{u.payments > 0 && ` · ${u.payments} Zahlung(en)`}
-                  {r && ` · ${formatKm(r.km)} anteilig · ${formatEuro(r.totalCents)} gesamt`}
+                  {r && ` · ${formatKm(r.km)} anteilig · ${formatEuro(r.totalCents)} bis heute`}
                 </div>
               </div>
             </div>

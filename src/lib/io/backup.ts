@@ -56,6 +56,7 @@ const paymentSchema = z.object({
   toPersonId: z.string().min(1),
   amountCents: z.number().int().positive(),
   recurrence: recurrenceSchema.optional(),
+  tripId: z.string().optional(),
   note: z.string().optional(),
   createdAt: stamp,
   updatedAt: stamp,

@@ -113,18 +113,39 @@ test('Festpreis: Gastfahrt mit Festpreis, Anrechnung an Empfänger, nur ohne Mit
   await expectNoHorizontalOverflow(page)
   await expectAccessible(page, 'Abrechnung mit Festpreis')
 
+  // --- Gast hat bar an Konrad bezahlt → Gast ausgeglichen, Zahlung erscheint im Ausgleich
+  await page.goto('/#/fahrten')
+  await page.getByRole('button', { name: 'Fahrt bearbeiten' }).first().click()
+  dlg = page.getByRole('dialog', { name: 'Fahrt bearbeiten' })
+  await dlg.getByRole('checkbox', { name: /schon bezahlt/ }).check()
+  await expect(dlg.getByLabel('Bezahlt an')).toHaveValue(/.+/) // Vorgabe: erster Empfänger
+  await dlg.getByLabel('Bezahlt an').selectOption({ label: 'Konrad' })
+  await dlg.getByRole('button', { name: 'Änderungen speichern' }).click()
+  await expect(dlg).toHaveCount(0)
+  await page.goto('/#/abrechnung')
+  await expect(row('Gast')).toContainText('ausgeglichen')
+  await expect(row('Konrad')).toContainText('2.420,00') // 2.520 − 100 bar erhalten
+  await expect(page.getByText('Ausgleichszahlungen im Zeitraum')).toBeVisible()
+  await expect(page.getByText(/Festpreis Fahrt 01\.05\.2026/).first()).toBeVisible()
+  // Übersicht: Stand heute, der Gast schuldet niemandem etwas
+  await page.goto('/#/')
+  await expect(page.getByText(/Stand heute, \d\d\.\d\d\.\d{4}/)).toBeVisible()
+  const owes = page.locator('li').filter({ hasText: '→' })
+  await expect(owes.filter({ hasText: 'Gast' })).toHaveCount(0)
+  await expect(owes.filter({ hasText: 'Dennis' })).toContainText('2.030,00')
+
   // --- Nachträglich ein Mitglied dazunehmen → Festpreis wird abgelehnt
   await page.goto('/#/fahrten')
   await page.getByRole('button', { name: 'Fahrt bearbeiten' }).first().click()
   dlg = page.getByRole('dialog', { name: 'Fahrt bearbeiten' })
-  await expect(dlg.getByRole('checkbox', { name: /Festpreis/ })).toBeChecked()
+  await expect(dlg.getByRole('checkbox', { name: /Festpreis statt Abrechnung/ })).toBeChecked()
   await expect(dlg.getByLabel('Festpreis', { exact: true })).toHaveValue('100,00')
   await chip(dlg.getByRole('group', { name: 'Beteiligte Personen' }), 'Konrad').click()
   await dlg.getByRole('button', { name: 'Änderungen speichern' }).click()
   await expect(dlg.getByText('Ein Festpreis ist nur möglich, wenn kein registriertes Mitglied gefahren ist.')).toBeVisible()
   // Haken entfernen → Fahrt wird ganz normal nach km abgerechnet (auch das geht bei Gästen)
   await chip(dlg.getByRole('group', { name: 'Beteiligte Personen' }), 'Konrad').click()
-  await dlg.getByRole('checkbox', { name: /Festpreis/ }).uncheck()
+  await dlg.getByRole('checkbox', { name: /Festpreis statt Abrechnung/ }).uncheck()
   await dlg.getByRole('button', { name: 'Änderungen speichern' }).click()
   await expect(dlg).toHaveCount(0)
   await page.goto('/#/abrechnung')

@@ -6,7 +6,9 @@
 import type { Category, Expense, FuelFill, Payment, Person, Plan, SettlementSnapshot, Trip } from '../domain/types'
 import { hasErrors, validateExpense, validateFuel, validatePayment, validatePlan, validateTrip, type ExpenseDraft, type FuelDraft, type PaymentDraft, type PlanDraft, type TripDraft } from '../domain/validation'
 import { activeStore, activeUserEmail } from './active'
-import { putOp, type DataStore, type TableName } from './types'
+import { putOp, type DataStore, type TableName, type WriteOp } from './types'
+import { allocateCents } from '../domain/allocate'
+import { formatDate } from '../format'
 
 export class ValidationError extends Error {
   constructor(public fields: Record<string, string>) {
@@ -143,13 +145,18 @@ export function registeredPersonIds(store: DataStore = activeStore()): Set<strin
   return new Set(store.getData().persons.filter((p) => p.email).map((p) => p.id))
 }
 
-export async function saveTrip(draft: TripDraft, id?: string, store: DataStore = activeStore()): Promise<Trip> {
+/**
+ * @param guestPaidTo Festpreis-Fahrt: Person, an die der Gast den Festpreis direkt bezahlt hat
+ *   (string), nicht bezahlt (null) oder unverändert lassen (undefined).
+ */
+export async function saveTrip(draft: TripDraft, id?: string, store: DataStore = activeStore(), guestPaidTo?: string | null): Promise<Trip> {
   const d = clean(draft)
   if (d.stops) {
     d.stops = d.stops.map((s) => s.trim()).filter(Boolean)
     if (d.stops.length === 0) delete d.stops
   }
   const errors = validateTrip(d, registeredPersonIds(store))
+  if (guestPaidTo && d.personIds?.includes(guestPaidTo)) errors.guestPaidTo = 'Wer gefahren ist, kann nicht an sich selbst zahlen.'
   if (hasErrors(errors)) throw new ValidationError(errors)
   const now = nowStamp()
   let trip: Trip
@@ -160,14 +167,45 @@ export async function saveTrip(draft: TripDraft, id?: string, store: DataStore =
   } else {
     trip = { ...d, id: newId(), createdAt: now, updatedAt: now, ...by() }
   }
-  await store.commit([{ type: 'put', table: 'trips', value: trip }])
+  await store.commit([{ type: 'put', table: 'trips', value: trip }, ...guestPaymentOps(trip, guestPaidTo, now, store)])
   return trip
 }
 
-export async function deleteTrip(id: string, store: DataStore = activeStore()): Promise<Trip | undefined> {
-  const old = store.getData().trips.find((t) => t.id === id)
-  await store.commit([{ type: 'delete', table: 'trips', id }])
-  return old
+/**
+ * Vom Gast direkt bezahlter Festpreis: je Gast eine Ausgleichszahlung an `paidTo`, verknüpft mit der Fahrt
+ * (feste ID je Gast). Ohne Festpreis oder bei `null` werden verknüpfte Zahlungen entfernt.
+ */
+function guestPaymentOps(trip: Trip, paidTo: string | null | undefined, now: string, store: DataStore): WriteOp[] {
+  if (paidTo === undefined && trip.fixedPriceCents != null) return []
+  const linked = store.getData().payments.filter((p) => p.tripId === trip.id)
+  const wanted: Payment[] = []
+  if (paidTo && trip.fixedPriceCents != null) {
+    const parts = allocateCents(trip.fixedPriceCents, trip.personIds.map(() => 1))
+    trip.personIds.forEach((guest, i) => {
+      const id = `fixed-${trip.id}-${guest}`
+      const old = linked.find((p) => p.id === id)
+      wanted.push({
+        id, kind: 'settlement', tripId: trip.id, date: trip.startDate, fromPersonId: guest, toPersonId: paidTo, amountCents: parts[i],
+        note: `Festpreis Fahrt ${formatDate(trip.startDate)}`, createdAt: old?.createdAt ?? now, updatedAt: now, ...by(),
+      })
+    })
+  }
+  return [
+    ...linked.filter((p) => !wanted.some((w) => w.id === p.id)).map((p): WriteOp => ({ type: 'delete', table: 'payments', id: p.id })),
+    ...wanted.map((w) => putOp('payments', w)),
+  ]
+}
+
+/** Löscht die Fahrt samt der mit ihr verknüpften Zahlungen; das Ergebnis dient für „Rückgängig“. */
+export async function deleteTrip(id: string, store: DataStore = activeStore()): Promise<{ trip: Trip; payments: Payment[] } | undefined> {
+  const trip = store.getData().trips.find((t) => t.id === id)
+  const payments = store.getData().payments.filter((p) => p.tripId === id)
+  await store.commit([{ type: 'delete', table: 'trips', id }, ...payments.map((p): WriteOp => ({ type: 'delete', table: 'payments', id: p.id }))])
+  return trip ? { trip, payments } : undefined
+}
+
+export async function restoreTrip(removed: { trip: Trip; payments: Payment[] }, store: DataStore = activeStore()): Promise<void> {
+  await store.commit([putOp('trips', removed.trip), ...removed.payments.map((p) => putOp('payments', p))])
 }
 
 // ---------- Kosten ----------

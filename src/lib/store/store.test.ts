@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { MemoryStore } from './memoryStore'
-import { addPerson, deleteTrip, findMemberPerson, linkMember, restoreRecord, setPersonActive, saveExpense, savePayment, saveSettlementSnapshot, saveTrip, ValidationError } from './repo'
+import { addPerson, deleteTrip, findMemberPerson, linkMember, restoreTrip, setPersonActive, saveExpense, savePayment, saveSettlementSnapshot, saveTrip, ValidationError } from './repo'
 import { createBackup, parseBackup, planMerge, restoreBackup, BACKUP_APP_ID } from '../io/backup'
 import { buildSettlement } from '../domain/settlement'
 
@@ -11,7 +11,7 @@ describe('Repository', () => {
     const t = await saveTrip({ startDate: '2026-01-01', endDate: '2026-01-01', km: 10, personIds: [a.id] }, undefined, db)
     const removed = await deleteTrip(t.id, db)
     expect(db.getData().trips).toHaveLength(0)
-    await restoreRecord('trips', removed!, db)
+    await restoreTrip(removed!, db)
     expect(db.getData().trips).toEqual([t])
   })
   it('validiert Ausgleichszahlungen', async () => {

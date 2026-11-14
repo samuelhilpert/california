@@ -246,6 +246,8 @@ export function Modal({ open, onClose, title, description, children, footer, siz
     document.addEventListener('keydown', onKey)
     document.body.style.overflow = 'hidden'
     const t = setTimeout(() => {
+      // Nur fokussieren, wenn noch kein Feld im Fenster aktiv ist – sonst springt der Cursor mitten im Tippen weg
+      if (panel.current?.contains(document.activeElement)) return
       const first = panel.current?.querySelector<HTMLElement>('[data-autofocus], input:not([type=hidden]):not([disabled]), select, textarea, button:not([data-close])')
       first?.focus()
     }, 10)

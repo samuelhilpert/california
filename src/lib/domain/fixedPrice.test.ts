@@ -7,7 +7,7 @@
 import * as XLSX from 'xlsx'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { MemoryStore } from '../store/memoryStore'
-import { addPerson, saveExpense, saveTrip, ValidationError } from '../store/repo'
+import { addPerson, deleteTrip, restoreTrip, saveExpense, saveTrip, ValidationError } from '../store/repo'
 import { createBackup, parseBackup, restoreBackup } from '../io/backup'
 import { buildDataWorkbook, buildSettlementWorkbook, workbookToArray } from '../io/excelExport'
 import { balanceBreakdown } from './breakdown'
@@ -245,5 +245,93 @@ describe('Erklärungstexte', () => {
     expect(nb(fixedPriceSummary({ tripCostCents: 26000, fixedPriceCents: 10000, recipientNames: ['Dennis'] }))).toBe('Festpreis 100,00 € · Differenz 160,00 € trägt Dennis')
     expect(nb(fixedPriceSummary({ tripCostCents: 26000, fixedPriceCents: 10000, recipientNames: ['Konrad', 'Dennis'] }))).toBe('Festpreis 100,00 € · Differenz 160,00 € tragen Konrad, Dennis')
     expect(nb(fixedPriceSummary({ tripCostCents: 6500, fixedPriceCents: 10000, recipientNames: ['Konrad'] }))).toBe('Festpreis 100,00 € · Überschuss 35,00 € geht an Konrad')
+  })
+})
+
+describe('Gast hat den Festpreis schon bezahlt', () => {
+  let db: MemoryStore
+  let K: string, D: string, G: string, G2: string
+  beforeEach(async () => {
+    db = new MemoryStore()
+    K = (await addPerson('Konrad', db)).id
+    D = (await addPerson('Dennis', db)).id
+    G = (await addPerson('Gast', db)).id
+    G2 = (await addPerson('Gast 2', db)).id
+    await saveExpense({ title: 'Leasingrate', categoryId: 'leasing', amountCents: 650000, date: '2027-01-06', allocation: 'perKm', paidBy: K }, undefined, db)
+    await saveTrip({ startDate: '2027-02-01', endDate: '2027-02-01', km: 9600, personIds: [K] }, undefined, db)
+  })
+  const guestTrip = (extra: Partial<Parameters<typeof saveTrip>[0]> = {}) => ({ startDate: '2027-03-01', endDate: '2027-03-02', km: 400, personIds: [G], fixedPriceCents: 10000, fixedPriceRecipientIds: [K, D], ...extra })
+  const settle = () => buildSettlement(db.getData(), { period: { kind: 'all' }, today: '2027-12-31' })
+  const saldo = (id: string) => settle().balance.balances.find((b) => b.personId === id)?.balanceCents ?? 0
+
+  it('legt eine verknüpfte Ausgleichszahlung an – der Gast ist ausgeglichen und taucht in keiner Überweisung auf', async () => {
+    const t = await saveTrip(guestTrip(), undefined, db, K)
+    expect(db.getData().payments).toEqual([expect.objectContaining({ id: `fixed-${t.id}-${G}`, kind: 'settlement', tripId: t.id, date: '2027-03-01', fromPersonId: G, toPersonId: K, amountCents: 10000, note: 'Festpreis Fahrt 01.03.2027' })])
+    expect(saldo(G)).toBe(0)
+    // Konrad hat die 100 € bekommen: 6.500 − 6.320 − 100 = +80; Dennis trägt seine Hälfte der Differenz (80 €)
+    expect(saldo(K)).toBe(8000)
+    expect(saldo(D)).toBe(-8000)
+    expect(settle().balance.transfers).toEqual([{ fromPersonId: D, toPersonId: K, amountCents: 8000 }])
+  })
+
+  it('Betrag oder Empfänger ändern aktualisiert dieselbe Zahlung (keine Doppelzahlung)', async () => {
+    const t = await saveTrip(guestTrip(), undefined, db, K)
+    await saveTrip(guestTrip({ fixedPriceCents: 12000 }), t.id, db, D)
+    expect(db.getData().payments).toHaveLength(1)
+    expect(db.getData().payments[0]).toMatchObject({ toPersonId: D, amountCents: 12000 })
+    expect(saldo(G)).toBe(0)
+  })
+
+  it('unverändert lassen (undefined) behält die Zahlung', async () => {
+    const t = await saveTrip(guestTrip(), undefined, db, K)
+    await saveTrip(guestTrip({ note: 'nur Notiz' }), t.id, db)
+    expect(db.getData().payments).toHaveLength(1)
+  })
+
+  it('Haken „bezahlt“ entfernen oder Festpreis ganz entfernen löscht die Zahlung', async () => {
+    const t = await saveTrip(guestTrip(), undefined, db, K)
+    await saveTrip(guestTrip(), t.id, db, null)
+    expect(db.getData().payments).toHaveLength(0)
+    await saveTrip(guestTrip(), t.id, db, K)
+    await saveTrip({ startDate: '2027-03-01', endDate: '2027-03-02', km: 400, personIds: [G] }, t.id, db)
+    expect(db.getData().payments).toHaveLength(0)
+    expect(saldo(G)).toBe(-26000) // jetzt normal nach km
+  })
+
+  it('zwei Gäste: je eine Zahlung, centgenau passend zum Anteil – beide ausgeglichen', async () => {
+    await saveTrip(guestTrip({ personIds: [G, G2], fixedPriceCents: 10001 }), undefined, db, K)
+    const pays = db.getData().payments
+    expect(pays).toHaveLength(2)
+    expect(pays.reduce((a, p) => a + p.amountCents, 0)).toBe(10001)
+    expect(saldo(G)).toBe(0)
+    expect(saldo(G2)).toBe(0)
+  })
+
+  it('ein Gast weniger: dessen Zahlung verschwindet', async () => {
+    const t = await saveTrip(guestTrip({ personIds: [G, G2] }), undefined, db, K)
+    await saveTrip(guestTrip(), t.id, db, K)
+    expect(db.getData().payments.map((p) => p.fromPersonId)).toEqual([G])
+    expect(db.getData().payments[0].amountCents).toBe(10000)
+  })
+
+  it('Fahrt löschen entfernt die Zahlung; Rückgängig stellt beides wieder her', async () => {
+    const t = await saveTrip(guestTrip(), undefined, db, K)
+    const before = db.getData().payments
+    const removed = await deleteTrip(t.id, db)
+    expect(db.getData().payments).toHaveLength(0)
+    await restoreTrip(removed!, db)
+    expect(db.getData().trips.find((x) => x.id === t.id)).toEqual(t)
+    expect(db.getData().payments).toEqual(before)
+  })
+
+  it('ein Gast kann nicht an sich selbst zahlen', async () => {
+    await expect(saveTrip(guestTrip(), undefined, db, G)).rejects.toMatchObject({ fields: { guestPaidTo: expect.any(String) } })
+  })
+
+  it('Backup: Zahlung mit Verweis auf die Fahrt bleibt erhalten', async () => {
+    await saveTrip(guestTrip(), undefined, db, K)
+    const copy = new MemoryStore()
+    await restoreBackup(parseBackup(JSON.stringify(createBackup(db))), copy)
+    expect(copy.getData().payments).toEqual(db.getData().payments)
   })
 })

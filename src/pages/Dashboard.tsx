@@ -43,7 +43,8 @@ export function DashboardPage() {
   const [nowMs] = useState(() => Date.now())
   const today = todayIso()
 
-  const s = useMemo(() => (data ? buildSettlement(data, { period: { kind: 'all' }, today }) : undefined), [data, today])
+  // Stand heute: künftige Leasingraten und Abschläge zählen noch nicht (sonst entstünden scheinbare Schulden)
+  const s = useMemo(() => (data ? buildSettlement(data, { period: { kind: 'until', to: today }, today }) : undefined), [data, today])
   if (!data || !s) return <Loading />
 
   const toggleDetails = (open: boolean) => {
@@ -65,7 +66,6 @@ export function DashboardPage() {
   const recent = [...data.trips].sort((a, b) => (a.startDate === b.startDate ? b.createdAt.localeCompare(a.createdAt) : a.startDate < b.startDate ? 1 : -1)).slice(0, 5)
   const pName = new Map(data.persons.map((p) => [p.id, p.name]))
   const who = (id: string) => (id === me?.id ? 'Du' : pName.get(id) ?? '?')
-  const dueCents = s.costs.filter((c) => c.date <= today).reduce((a, c) => a + c.amountCents, 0)
   const activePersons = data.persons.filter((p) => p.active).length
   const isEmpty = data.trips.length === 0 && data.expenses.length === 0
   const maxShare = Math.max(1, ...rows.map((r) => r.totalCents))
@@ -122,7 +122,7 @@ export function DashboardPage() {
 
           <Card>
             <CardTitle action={<Link to="/abrechnung" className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:underline">Abrechnung <ArrowRight className="h-3.5 w-3.5" /></Link>}>
-              Wer schuldet wem?
+              <span>Wer schuldet wem?<span className="block text-xs font-normal text-slate-500">Stand heute, {formatDate(today)}</span></span>
             </CardTitle>
             {openTransfers.length === 0 ? (
               <p className="flex items-center gap-2 text-sm text-slate-600"><CheckCircle2 className="h-4 w-4 text-green-600" />Alles ausgeglichen.</p>
@@ -137,7 +137,7 @@ export function DashboardPage() {
               </ul>
             )}
             <p className="mt-3 text-xs text-slate-500 tabular">
-              {formatPricePerKm(s.pricePerKm)} · {formatKm(s.totalKm)} · {formatEuro(s.totalCostCents)} Kosten insgesamt
+              {formatPricePerKm(s.pricePerKm)} · {formatKm(s.totalKm)} · {formatEuro(s.totalCostCents)} Kosten bis heute
             </p>
           </Card>
 
@@ -178,8 +178,8 @@ export function DashboardPage() {
           <Disclosure label={detailsOpen ? 'Details ausblenden' : 'Details anzeigen (Kennzahlen, Anteile, Kategorien)'} open={detailsOpen} onToggle={toggleDetails}>
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-                <Stat label="Gesamtkosten" icon={<Coins className="h-4 w-4" />} value={formatEuro(s.totalCostCents)} sub={dueCents !== s.totalCostCents ? `davon bis heute fällig: ${formatEuro(dueCents)}` : `${s.costs.length} Buchungen`} />
-                <Stat label="Gesamtkilometer" icon={<Gauge className="h-4 w-4" />} value={formatKm(s.totalKm)} />
+                <Stat label="Kosten bis heute" icon={<Coins className="h-4 w-4" />} value={formatEuro(s.totalCostCents)} sub={`${s.costs.length} Buchungen`} />
+                <Stat label="Kilometer bis heute" icon={<Gauge className="h-4 w-4" />} value={formatKm(s.totalKm)} />
                 <Stat label="Kosten pro km" icon={<Route className="h-4 w-4" />} value={formatPricePerKm(s.pricePerKm)} sub={s.directCostCents ? `ohne ${formatEuro(s.directCostCents)} Direktkosten` : 'Ø über alle Fahrten'} />
                 <Stat label="Fahrten" icon={<Car className="h-4 w-4" />} value={formatInt(data.trips.length)} sub={s.invalidTrips.length ? `${s.invalidTrips.length} unvollständig` : undefined} />
                 <Stat label="Personen" icon={<Users className="h-4 w-4" />} value={formatInt(activePersons)} sub={data.persons.length !== activePersons ? `+ ${data.persons.length - activePersons} deaktiviert` : 'aktiv'} />
@@ -187,7 +187,7 @@ export function DashboardPage() {
 
               <div className="grid gap-6 lg:grid-cols-2">
                 <Card>
-                  <CardTitle sub="Gesamter Zeitraum">Kostenanteile je Person</CardTitle>
+                  <CardTitle sub="Stand heute">Kostenanteile je Person</CardTitle>
                   {rows.length === 0 ? (
                     <p className="text-sm text-slate-500">Noch keine Anteile – es fehlen Fahrten mit Kilometern.</p>
                   ) : (
@@ -208,7 +208,7 @@ export function DashboardPage() {
                 </Card>
 
                 <Card>
-                  <CardTitle sub="Gesamter Zeitraum">Kosten nach Kategorie</CardTitle>
+                  <CardTitle sub="Stand heute">Kosten nach Kategorie</CardTitle>
                   {s.categories.length === 0 ? (
                     <p className="text-sm text-slate-500">Noch keine Kosten erfasst.</p>
                   ) : (

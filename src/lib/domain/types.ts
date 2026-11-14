@@ -151,6 +151,8 @@ export interface Payment {
   /** Betrag in Cent, bei Daueraufträgen je Fälligkeit. */
   amountCents: number
   recurrence?: Recurrence
+  /** Verknüpfte Festpreis-Fahrt: Der Gast hat den Festpreis direkt bezahlt (wird mit der Fahrt gepflegt). */
+  tripId?: string
   note?: string
   createdAt: string
   updatedAt: string

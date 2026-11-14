@@ -9,10 +9,10 @@ import { resolveTripKm, validateTrip, hasErrors, type FieldErrors, type TripDraf
 import { registeredPersonIds, saveTrip, ValidationError } from '../lib/store/repo'
 import { todayIso } from '../lib/domain/dates'
 import { centsToInput, formatDate, formatEuro, formatInt, formatKm, numberToInput } from '../lib/format'
-import { Button, Disclosure, Field, Input, Modal, Notice, Textarea } from './ui'
+import { Button, Disclosure, Field, Input, Modal, Notice, Select, Textarea } from './ui'
 import { PersonMultiSelect } from './PersonMultiSelect'
 import { errorMessage, useFeedback } from './feedback-context'
-import { useMyPerson, useProMode } from '../lib/store/context'
+import { useAppData, useMyPerson, useProMode } from '../lib/store/context'
 
 interface Props {
   open: boolean
@@ -64,6 +64,11 @@ function TripForm({ onClose, trip, persons, trips, settlements = [], prefill, on
   const [fixed, setFixed] = useState(init?.fixedPriceCents != null)
   const [fixedAmount, setFixedAmount] = useState(centsToInput(init?.fixedPriceCents))
   const [recipientIds, setRecipientIds] = useState<string[]>(init?.fixedPriceRecipientIds ?? [])
+  // Gast hat den Festpreis direkt bezahlt → verknüpfte Ausgleichszahlung
+  const { payments } = useAppData()
+  const paidBefore = trip ? payments.find((p) => p.tripId === trip.id) : undefined
+  const [guestPaid, setGuestPaid] = useState(paidBefore != null)
+  const [guestPaidTo, setGuestPaidTo] = useState(paidBefore?.toPersonId ?? '')
   const [note, setNote] = useState(init?.note ?? '')
   const [moreOpen, setMoreOpen] = useState(!!(init?.from || init?.to || init?.note || init?.stops?.length))
   const [errors, setErrors] = useState<FieldErrors>({})
@@ -81,6 +86,8 @@ function TripForm({ onClose, trip, persons, trips, settlements = [], prefill, on
   const recipientCandidates = persons.filter((p) => !personIds.includes(p.id))
   // Wer selbst gefahren ist, kann nicht Empfänger sein
   const recipients = recipientIds.filter((id) => !personIds.includes(id))
+  // Ohne Auswahl: an den ersten Empfänger
+  const paidTo = guestPaidTo || recipients[0] || ''
 
   const closedIn = settlements.filter((st) => st.period.kind !== 'all' && startDate && inRange(startDate, resolvePeriod(st.period)))
 
@@ -89,6 +96,7 @@ function TripForm({ onClose, trip, persons, trips, settlements = [], prefill, on
     if (fixed && !fixedAmount.trim()) parseErrors.fixedPriceCents = 'Bitte einen Festpreis eingeben, z. B. 100,00.'
     else if (fixed && fixedCents == null) parseErrors.fixedPriceCents = 'Bitte einen gültigen Betrag eingeben, z. B. 100,00.'
     if (fixed && recipients.length === 0) parseErrors.fixedPriceRecipientIds = 'Bitte mindestens eine Person wählen, die den Festpreis bekommt.'
+    if (fixed && guestPaid && (!paidTo || personIds.includes(paidTo))) parseErrors.guestPaidTo = 'Bitte angeben, an wen der Gast bezahlt hat.'
     if (kmOnly) {
       if (manual === null) parseErrors.km = 'Bitte eine Zahl eingeben, z. B. 125 oder 12,5.'
     } else {
@@ -147,7 +155,7 @@ function TripForm({ onClose, trip, persons, trips, settlements = [], prefill, on
     }
     setSaving(true)
     try {
-      const saved = await saveTrip(draft, trip?.id)
+      const saved = await saveTrip(draft, trip?.id, undefined, fixed && guestPaid ? paidTo : null)
       onSaved?.(saved)
       toast(trip ? 'Fahrt wurde aktualisiert.' : 'Fahrt wurde gespeichert.')
       onClose()
@@ -268,6 +276,20 @@ function TripForm({ onClose, trip, persons, trips, settlements = [], prefill, on
               {fixedCents != null && fixedCents > 0 && recipients.length > 1 && (
                 <p className="text-sm text-slate-600">Je ausgewählte Person {formatEuro(Math.floor(fixedCents / recipients.length))}{fixedCents % recipients.length ? ' (± 1 Cent)' : ''} vom Festpreis.</p>
               )}
+              <div className="grid gap-3 rounded-lg bg-slate-50 p-3">
+                <label className="flex items-center gap-2 text-sm text-slate-800">
+                  <input type="checkbox" className="h-4 w-4 accent-brand-700" checked={guestPaid} onChange={(e) => setGuestPaid(e.target.checked)} />
+                  Festpreis wurde schon bezahlt (z. B. bar oder PayPal)
+                </label>
+                {guestPaid && (
+                  <Field label="Bezahlt an" htmlFor="t-paid-to" error={errors.guestPaidTo} hint="Wird als Ausgleichszahlung erfasst – wer gefahren ist, ist damit ausgeglichen." className="sm:max-w-[50%]">
+                    <Select id="t-paid-to" value={paidTo} onChange={(e) => setGuestPaidTo(e.target.value)} invalid={!!errors.guestPaidTo}>
+                      <option value="">Bitte wählen</option>
+                      {persons.filter((p) => !personIds.includes(p.id) && (p.active || p.id === paidTo)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </Select>
+                  </Field>
+                )}
+              </div>
             </>
           )}
         </div>

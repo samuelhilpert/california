@@ -163,7 +163,8 @@ export function computeDistribution(trips: TripLike[], costs: CostEntry[]): Dist
       const fixed = t.fixedPriceCents
       const recipients = t.fixedPriceRecipientIds!
       const n = t.personIds.length
-      const guestParts = allocateCents(fixed, t.personIds.map(() => 1), idx)
+      // Ohne Versatz: muss zur Aufteilung der direkt bezahlten Festpreise (repo.saveTrip) passen
+      const guestParts = allocateCents(fixed, t.personIds.map(() => 1))
       const diffParts = allocateCents(tripCents[idx] - fixed, recipients.map(() => 1), idx)
       const shares: TripShare[] = [
         ...t.personIds.map((pid, i) => ({ personId: pid, km: t.km / n, cents: guestParts[i], fixed: 'guest' as const })),

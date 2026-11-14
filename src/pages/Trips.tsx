@@ -1,7 +1,7 @@
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { ArrowDownWideNarrow, ArrowUpNarrowWide, Download, MapPinned, Pencil, Plus, Route, Trash2, AlertTriangle } from 'lucide-react'
 import { useAppData, useProMode } from '../lib/store/context'
-import { deleteTrip, restoreRecord } from '../lib/store/repo'
+import { deleteTrip, restoreTrip } from '../lib/store/repo'
 import { findOdometerIssues } from '../lib/domain/tripChecks'
 import { validateTripForCalc } from '../lib/domain/settlement'
 import { buildTripsWorkbook, downloadWorkbook, invalidLabel } from '../lib/io/excelExport'
@@ -83,7 +83,7 @@ export function TripsPage() {
     if (!ok) return
     try {
       const removed = await deleteTrip(t.id)
-      toast('Fahrt wurde gelöscht.', 'success', removed ? { label: 'Rückgängig', onClick: async () => { await restoreRecord('trips', removed); toast('Fahrt wurde wiederhergestellt.') } } : undefined)
+      toast('Fahrt wurde gelöscht.', 'success', removed ? { label: 'Rückgängig', onClick: async () => { await restoreTrip(removed); toast('Fahrt wurde wiederhergestellt.') } } : undefined)
     } catch (e) {
       toast(errorMessage(e), 'error')
     }
