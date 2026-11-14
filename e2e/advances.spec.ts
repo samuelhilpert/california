@@ -128,6 +128,16 @@ test('Vorauszahlungen: Daueraufträge, Anrechnung im Ausgleich, Bearbeiten, Lös
   await expect(dennisSeries).toContainText('200,00')
   await page.getByRole('tab', { name: 'Gesamt' }).first().click()
   await expect(dennisSeries).toContainText('im Zeitraum 10×')
+  // „Bis heute“: alle Beispieldaten liegen in der Vergangenheit → gleiche Salden wie „Gesamt“
+  await page.getByRole('tab', { name: 'Bis heute' }).first().click()
+  await expect(page.getByRole('tab', { name: 'Bis heute' }).first()).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByText(/Fahrten \(Bis \d\d\.\d\d\.\d{4}\)/)).toBeVisible()
+  await expect(dennisSeries).toContainText('im Zeitraum 10×')
+  await expect(row('Samuel')).toContainText('827,50')
+  await expectNoHorizontalOverflow(page)
+  await page.reload()
+  await expect(page.getByRole('tab', { name: 'Bis heute' }).first()).toHaveAttribute('aria-selected', 'true')
+  await page.getByRole('tab', { name: 'Gesamt' }).first().click()
 
   // Samuel zahlt nur 5 Abschläge → Samuel 45 − 217,50 + 500 = +327,50, Konrad −525
   await advList.getByRole('listitem').filter({ hasText: 'Samuel → Konrad' }).getByRole('button', { name: 'Zahlung bearbeiten' }).click()

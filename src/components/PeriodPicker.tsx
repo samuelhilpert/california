@@ -5,6 +5,7 @@ import { Input, Select } from './ui'
 
 const KINDS: [PeriodSpec['kind'], string][] = [
   ['all', 'Gesamt'],
+  ['until', 'Bis heute'],
   ['year', 'Jahr'],
   ['month', 'Monat'],
   ['range', 'Zeitraum'],
@@ -17,20 +18,21 @@ export function PeriodPicker({ value, onChange, years, idPrefix = 'p' }: { value
   const year = 'year' in value ? value.year : years.at(-1) ?? curYear
   const setKind = (k: PeriodSpec['kind']) => {
     if (k === 'all') onChange({ kind: 'all' })
+    if (k === 'until') onChange({ kind: 'until', to: today })
     if (k === 'year') onChange({ kind: 'year', year })
     if (k === 'month') onChange({ kind: 'month', year, month: value.kind === 'month' ? value.month : year === curYear ? curMonth : 1 })
     if (k === 'range') onChange({ kind: 'range', from: `${year}-01-01`, to: year === curYear ? today : `${year}-12-31` })
   }
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="inline-flex rounded-lg border border-slate-200 bg-surface p-0.5 shadow-sm" role="tablist" aria-label="Zeitraum">
+      <div className="flex w-full rounded-lg border border-slate-200 bg-surface p-0.5 shadow-sm sm:inline-flex sm:w-auto" role="tablist" aria-label="Zeitraum">
         {KINDS.map(([k, label]) => (
           <button
             key={k}
             role="tab"
             aria-selected={value.kind === k}
             onClick={() => setKind(k)}
-            className={clsx('h-8 rounded-md px-3 text-sm font-medium transition-colors', value.kind === k ? 'bg-brand-700 text-on-brand' : 'text-slate-600 hover:bg-slate-100')}
+            className={clsx('h-8 flex-1 whitespace-nowrap rounded-md px-1.5 text-sm font-medium transition-colors sm:flex-none sm:px-3', value.kind === k ? 'bg-brand-700 text-on-brand' : 'text-slate-600 hover:bg-slate-100')}
           >
             {label}
           </button>

@@ -1,8 +1,11 @@
 import { daysInMonth, toIso } from './dates'
+import { formatDate } from '../format'
 import type { IsoDate } from './types'
 
 export type PeriodSpec =
   | { kind: 'all' }
+  /** Alles bis einschließlich `to` (in der Auswahl „Bis heute“) – ohne künftige Raten und Abschläge. */
+  | { kind: 'until'; to: IsoDate }
   | { kind: 'year'; year: number }
   | { kind: 'month'; year: number; month: number }
   | { kind: 'range'; from: IsoDate; to: IsoDate }
@@ -22,6 +25,8 @@ export function resolvePeriod(spec: PeriodSpec): DateRange {
   switch (spec.kind) {
     case 'all':
       return { from: null, to: null }
+    case 'until':
+      return { from: null, to: spec.to }
     case 'year':
       return { from: toIso(spec.year, 1, 1), to: toIso(spec.year, 12, 31) }
     case 'month':
@@ -37,19 +42,19 @@ export function inRange(date: IsoDate, range: DateRange): boolean {
   return true
 }
 
-const de = (d: IsoDate) => d.split('-').reverse().join('.')
-
 export function periodLabel(spec: PeriodSpec): string {
   switch (spec.kind) {
     case 'all':
       return 'Gesamter Zeitraum'
+    case 'until':
+      return `Bis ${formatDate(spec.to)}`
     case 'year':
       return `Jahr ${spec.year}`
     case 'month':
       return `${MONTH_NAMES[spec.month - 1]} ${spec.year}`
     case 'range': {
       const r = resolvePeriod(spec)
-      return `${de(r.from!)} – ${de(r.to!)}`
+      return `${formatDate(r.from)} – ${formatDate(r.to)}`
     }
   }
 }

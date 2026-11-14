@@ -61,6 +61,7 @@ const paymentSchema = z.object({
 })
 const periodSchema = z.union([
   z.object({ kind: z.literal('all') }),
+  z.object({ kind: z.literal('until'), to: isoDate }),
   z.object({ kind: z.literal('year'), year: z.number().int() }),
   z.object({ kind: z.literal('month'), year: z.number().int(), month: z.number().int().min(1).max(12) }),
   z.object({ kind: z.literal('range'), from: isoDate, to: isoDate }),

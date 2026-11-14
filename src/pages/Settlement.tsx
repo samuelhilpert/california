@@ -23,8 +23,10 @@ function loadPeriod(): { period: PeriodSpec; costPeriod: PeriodSpec | null } {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
       const v = JSON.parse(raw)
-      const ok = (p: unknown) => typeof p === 'object' && p != null && ['all', 'year', 'month', 'range'].includes((p as PeriodSpec).kind)
-      if (ok(v?.period) && (v.costPeriod == null || ok(v.costPeriod))) return { period: v.period, costPeriod: v.costPeriod ?? null }
+      const ok = (p: unknown) => typeof p === 'object' && p != null && ['all', 'until', 'year', 'month', 'range'].includes((p as PeriodSpec).kind)
+      // „Bis heute“ gilt immer bis zum aktuellen Tag, nicht bis zum Tag der letzten Auswahl
+      const fresh = (p: PeriodSpec): PeriodSpec => (p.kind === 'until' ? { kind: 'until', to: todayIso() } : p)
+      if (ok(v?.period) && (v.costPeriod == null || ok(v.costPeriod))) return { period: fresh(v.period), costPeriod: v.costPeriod ? fresh(v.costPeriod) : null }
     }
   } catch {
     /* Browser-Speicher nicht verfügbar */

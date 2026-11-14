@@ -6,14 +6,14 @@
 import * as XLSX from 'xlsx'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { MemoryStore } from '../store/memoryStore'
-import { addPerson, deletePayment, saveExpense, savePayment, saveTrip, ValidationError } from '../store/repo'
+import { addPerson, deletePayment, saveExpense, savePayment, saveSettlementSnapshot, saveTrip, ValidationError } from '../store/repo'
 import { createBackup, parseBackup, restoreBackup } from '../io/backup'
 import { buildSettlementWorkbook, workbookToArray } from '../io/excelExport'
 import { computeBalances } from './balance'
 import { expandPayments } from './recurrence'
 import { buildSettlement } from './settlement'
 import { validatePayment } from './validation'
-import type { PeriodSpec } from './period'
+import { periodLabel, resolvePeriod, samePeriod, type PeriodSpec } from './period'
 import type { CostEntry, Payment, PaymentEntry } from './types'
 
 const TODAY = '2027-12-31'
@@ -149,6 +149,25 @@ describe('Vorauszahlungen: ein Jahr mit sehr ungleicher Nutzung', () => {
     const notice = s.notices.find((n) => n.code === 'future-advances')
     expect(notice?.message).toMatch(/^36 Vorauszahlung\(en\) über 6\.480,00\s€/u)
     expect(s.balance.residualCents).toBe(0)
+  })
+
+  it('„Bis heute“: nur bis heute fällige Raten und Abschläge – ehrlicher Zwischenstand', () => {
+    // 30.06.2027: 6 Leasingraten, 6 Versicherungsmonate, Steuer; Abschläge Jan–Jun; Fahrten bis Juni (6.900 km)
+    const s = settle({ kind: 'until', to: '2027-06-30' }, '2027-06-30')
+    expect(s.payments).toHaveLength(12)
+    expect(s.costs.every((c) => c.date <= '2027-06-30')).toBe(true)
+    expect(s.perKmCostCents).toBe(6 * 50000 + 6 * 10000 + 30000)
+    expect(s.totalKm).toBe(1200 + 800 + 2500 + 400 + 1000)
+    expect(bal(s, D).advanceSentCents).toBe(6 * 24000)
+    expect(s.notices.map((n) => n.code)).not.toContain('future-advances')
+    expect(s.notices.map((n) => n.code)).not.toContain('future-costs')
+    expect(s.balance.residualCents).toBe(0)
+    // „Gesamt“ am selben Tag zählt dagegen alle 24 Raten und alle 48 Abschläge
+    expect(settle({ kind: 'all' }, '2027-06-30').payments).toHaveLength(48)
+  })
+
+  it('„Bis heute“ am Jahresende entspricht dem Jahr 2027 (alles liegt im Jahr)', () => {
+    expect(saldo(settle({ kind: 'until', to: '2027-12-31' }))).toEqual(saldo(settle()))
   })
 
   it('keine Hinweis-Meldung, wenn alle Abschläge in der Vergangenheit liegen', () => {
@@ -348,5 +367,20 @@ describe('Zufällige Szenarien (300 Durchläufe)', () => {
         expect(b.transfers.length).toBeLessThanOrEqual(people.length - 1)
       }
     }
+  })
+})
+
+describe('Zeitraum „Bis heute“', () => {
+  it('reicht vom Anfang bis einschließlich des Datums und hat eine lesbare Bezeichnung', () => {
+    expect(resolvePeriod({ kind: 'until', to: '2027-06-30' })).toEqual({ from: null, to: '2027-06-30' })
+    expect(periodLabel({ kind: 'until', to: '2027-06-30' })).toBe('Bis 30.06.2027')
+    expect(periodLabel({ kind: 'range', from: '2027-02-01', to: '2027-01-01' })).toBe('01.01.2027 – 01.02.2027')
+    expect(samePeriod({ kind: 'until', to: '2027-06-30' }, { kind: 'all' })).toBe(false)
+  })
+
+  it('abgeschlossene Abrechnung „bis heute“ übersteht Backup und Wiederherstellung', async () => {
+    await saveSettlementSnapshot({ title: 'Stand Juni', period: { kind: 'until', to: '2027-06-30' }, personNames: {}, categoryNames: {}, result: {} }, db)
+    const restored = parseBackup(JSON.stringify(createBackup(db)))
+    expect(restored.data.settlements[0].period).toEqual({ kind: 'until', to: '2027-06-30' })
   })
 })
