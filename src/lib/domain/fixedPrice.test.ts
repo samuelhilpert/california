@@ -222,6 +222,10 @@ describe('mit gespeicherten Daten: Ausgleich, Rechenweg, Backup, Excel', () => {
     expect(shares.find((r) => r[0] === 'Summe')![6]).toBe(260)
     const rows = XLSX.utils.sheet_to_json<unknown[]>(wb2.Sheets['Fahrten'], { header: 1 })
     expect(rows.find((r) => r[5] === 100)).toBeTruthy()
+    // keine Fehlerzellen (#NUM! o. Ä.) in irgendeinem Blatt
+    for (const wb of [wb1, wb2]) for (const name of wb.SheetNames) {
+      expect(Object.entries(wb.Sheets[name]).filter(([a, c]) => !a.startsWith('!') && (c as XLSX.CellObject).t === 'e'), name).toEqual([])
+    }
   })
 })
 

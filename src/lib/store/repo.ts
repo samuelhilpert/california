@@ -121,7 +121,8 @@ export async function setPersonActive(id: string, active: boolean, store: DataSt
 function personUsage(id: string, store: DataStore = activeStore()): { trips: number; expenses: number; payments: number } {
   const d = store.getData()
   return {
-    trips: d.trips.filter((t) => t.personIds.includes(id)).length,
+    // auch als Empfänger eines Festpreises – sonst entstünden Verweise auf gelöschte Personen
+    trips: d.trips.filter((t) => t.personIds.includes(id) || t.fixedPriceRecipientIds?.includes(id)).length,
     expenses: d.expenses.filter((e) => e.directPersonIds?.includes(id) || e.paidBy === id).length,
     payments: d.payments.filter((p) => p.fromPersonId === id || p.toPersonId === id).length + d.fuel.filter((f) => f.personId === id).length + d.plans.filter((p) => p.personIds.includes(id)).length,
   }

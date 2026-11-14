@@ -117,6 +117,7 @@ export function buildTripsWorkbook(trips: Trip[], persons: Person[]): XLSX.WorkB
   return wb
 }
 
+/** Auch für abgeschlossene Abrechnungen älterer Versionen (ohne Festpreise und Vorauszahlungen). */
 export function buildSettlementWorkbook(s: Settlement, data: { persons: Person[]; categories: Category[]; expenses: Expense[] }, labels: { trips: string; costs: string }): XLSX.WorkBook {
   const wb = XLSX.utils.book_new()
   const pm = new Map(data.persons.map((p) => [p.id, p]))
@@ -156,8 +157,8 @@ export function buildSettlementWorkbook(s: Settlement, data: { persons: Person[]
   // Personenanteile
   const personSheet: CellValue[][] = [
     ['Person', 'Status', 'Fahrten', 'Anteilige Kilometer', 'Anteil Kilometerkosten', 'Anteil Direktkosten', 'Festpreis-Fahrten (Gast: Festpreis, Empfänger: Differenz)', 'Kostenanteil gesamt'],
-    ...rows.map((r) => [r.name, r.active ? 'aktiv' : 'deaktiviert', r.tripCount, km(r.km), eur(r.perKmCents), eur(r.directCents), eur(r.fixedCents), eur(r.totalCents)]),
-    ['Summe', null, null, km(rows.reduce((a, r) => a + r.km, 0)), eur(rows.reduce((a, r) => a + r.perKmCents, 0)), eur(rows.reduce((a, r) => a + r.directCents, 0)), eur(rows.reduce((a, r) => a + r.fixedCents, 0)), eur(s.distributedCents)],
+    ...rows.map((r) => [r.name, r.active ? 'aktiv' : 'deaktiviert', r.tripCount, km(r.km), eur(r.perKmCents), eur(r.directCents), eur(r.fixedCents ?? 0), eur(r.totalCents)]),
+    ['Summe', null, null, km(rows.reduce((a, r) => a + r.km, 0)), eur(rows.reduce((a, r) => a + r.perKmCents, 0)), eur(rows.reduce((a, r) => a + r.directCents, 0)), eur(rows.reduce((a, r) => a + (r.fixedCents ?? 0), 0)), eur(s.distributedCents)],
   ]
   XLSX.utils.book_append_sheet(wb, sheet(personSheet, [22, 12, 10, 20, 22, 20, 26, 20]), 'Personenanteile')
 
@@ -165,7 +166,7 @@ export function buildSettlementWorkbook(s: Settlement, data: { persons: Person[]
   const bal = s.balance
   const balanceRows: CellValue[][] = [
     ['Person', 'Bezahlt', 'Kostenanteil', 'Vorauszahlung gezahlt', 'Vorauszahlung erhalten', 'Ausgleich gezahlt', 'Ausgleich erhalten', 'Saldo (+ bekommt / − zahlt)'],
-    ...bal.balances.map((b) => [pm.get(b.personId)?.name ?? 'Unbekannt', eur(b.paidCents), eur(b.shareCents), eur(b.advanceSentCents), eur(b.advanceReceivedCents), eur(b.sentCents), eur(b.receivedCents), eur(b.balanceCents)]),
+    ...bal.balances.map((b) => [pm.get(b.personId)?.name ?? 'Unbekannt', eur(b.paidCents), eur(b.shareCents), eur(b.advanceSentCents ?? 0), eur(b.advanceReceivedCents ?? 0), eur(b.sentCents), eur(b.receivedCents), eur(b.balanceCents)]),
     [],
     ['Vorgeschlagene Ausgleichszahlungen'],
     ...(bal.transfers.length ? bal.transfers.map((t) => [`${pm.get(t.fromPersonId)?.name ?? '?'} → ${pm.get(t.toPersonId)?.name ?? '?'}`, eur(t.amountCents)]) : [['Keine – alle Salden sind ausgeglichen.']]),

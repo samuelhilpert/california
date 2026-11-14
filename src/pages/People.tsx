@@ -26,7 +26,7 @@ export function PeoplePage() {
   if (!data || !s) return <Loading />
 
   const usage = (id: string) => ({
-    trips: data.trips.filter((t) => t.personIds.includes(id)).length,
+    trips: data.trips.filter((t) => t.personIds.includes(id) || t.fixedPriceRecipientIds?.includes(id)).length,
     expenses: data.expenses.filter((e) => e.directPersonIds?.includes(id) || e.paidBy === id).length,
     payments: data.payments.filter((p) => p.fromPersonId === id || p.toPersonId === id).length,
   })

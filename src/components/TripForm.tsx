@@ -86,7 +86,9 @@ function TripForm({ onClose, trip, persons, trips, settlements = [], prefill, on
 
   const buildDraft = (): { draft: TripDraft; parseErrors: FieldErrors } => {
     const parseErrors: FieldErrors = {}
-    if (fixed && fixedAmount.trim() && fixedCents == null) parseErrors.fixedPriceCents = 'Bitte einen gültigen Betrag eingeben, z. B. 100,00.'
+    if (fixed && !fixedAmount.trim()) parseErrors.fixedPriceCents = 'Bitte einen Festpreis eingeben, z. B. 100,00.'
+    else if (fixed && fixedCents == null) parseErrors.fixedPriceCents = 'Bitte einen gültigen Betrag eingeben, z. B. 100,00.'
+    if (fixed && recipients.length === 0) parseErrors.fixedPriceRecipientIds = 'Bitte mindestens eine Person wählen, die den Festpreis bekommt.'
     if (kmOnly) {
       if (manual === null) parseErrors.km = 'Bitte eine Zahl eingeben, z. B. 125 oder 12,5.'
     } else {

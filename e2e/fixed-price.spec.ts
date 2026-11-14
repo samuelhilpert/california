@@ -67,6 +67,10 @@ test('Festpreis: Gastfahrt mit Festpreis, Anrechnung an Empfänger, nur ohne Mit
   await selectOnly(dlg.getByRole('group', { name: 'Beteiligte Personen' }), ['Gast'])
   await expect(fixedBox).toBeEnabled()
   await fixedBox.check()
+  // Haken ohne Betrag und Empfänger darf nicht still als km-Fahrt gespeichert werden
+  await dlg.getByRole('button', { name: 'Fahrt speichern' }).click()
+  await expect(dlg.getByText('Bitte einen Festpreis eingeben, z. B. 100,00.')).toBeVisible()
+  await expect(dlg.getByText('Bitte mindestens eine Person wählen, die den Festpreis bekommt.')).toBeVisible()
   await dlg.getByLabel('Festpreis', { exact: true }).fill('100')
   const recipients = dlg.getByRole('group', { name: 'Empfänger des Festpreises' })
   await expect(chip(recipients, 'Gast')).toHaveCount(0) // wer fährt, kann nicht Empfänger sein
