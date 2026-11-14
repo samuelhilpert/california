@@ -237,7 +237,7 @@ export function SettlementPage() {
       </Card>
 
       <div className="mb-6">
-        <BalancePanel s={s} persons={data.persons} periodLabel={labels.trips} />
+        <BalancePanel s={s} persons={data.persons} payments={data.payments} periodLabel={labels.trips} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-5">
@@ -246,7 +246,7 @@ export function SettlementPage() {
           {s.trips.length === 0 && s.invalidTrips.length === 0 ? (
             <EmptyState title="Keine Fahrten im Zeitraum" />
           ) : (
-            <div className="max-h-[480px] overflow-auto">
+            <div className="max-h-[480px] overflow-auto" tabIndex={0} role="region" aria-label="Aufschlüsselung nach Fahrten">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-surface">
                   <tr className="border-y border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-500">

@@ -1,17 +1,22 @@
 /**
  * Ausgleich zwischen den Personen: Wer hat mehr bezahlt, als sein Anteil beträgt?
  *
- * Saldo = bezahlte Kosten − Kostenanteil + geleistete Ausgleichszahlungen − erhaltene Ausgleichszahlungen
+ * Saldo = bezahlte Kosten − Kostenanteil + geleistete Zahlungen − erhaltene Zahlungen
+ * (Vorauszahlungen und Ausgleichszahlungen zählen gleich; sie werden nur getrennt ausgewiesen.)
  *   > 0  → die Person bekommt Geld
  *   < 0  → die Person muss zahlen
  */
-import type { CostEntry, Payment } from './types'
+import type { CostEntry, PaymentEntry } from './types'
 import type { Distribution } from './settlement'
 
 interface PersonBalance {
   personId: string
   paidCents: number
   shareCents: number
+  /** Vorauszahlungen (Abschläge), die die Person geleistet bzw. erhalten hat. */
+  advanceSentCents: number
+  advanceReceivedCents: number
+  /** Ausgleichszahlungen, die die Person geleistet bzw. erhalten hat. */
   sentCents: number
   receivedCents: number
   balanceCents: number
@@ -33,12 +38,12 @@ export interface BalanceResult {
   residualCents: number
 }
 
-export function computeBalances(dist: Pick<Distribution, 'persons'>, costs: CostEntry[], payments: Payment[]): BalanceResult {
+export function computeBalances(dist: Pick<Distribution, 'persons'>, costs: CostEntry[], payments: PaymentEntry[]): BalanceResult {
   const map = new Map<string, PersonBalance>()
   const get = (id: string) => {
     let b = map.get(id)
     if (!b) {
-      b = { personId: id, paidCents: 0, shareCents: 0, sentCents: 0, receivedCents: 0, balanceCents: 0 }
+      b = { personId: id, paidCents: 0, shareCents: 0, advanceSentCents: 0, advanceReceivedCents: 0, sentCents: 0, receivedCents: 0, balanceCents: 0 }
       map.set(id, b)
     }
     return b
@@ -51,10 +56,15 @@ export function computeBalances(dist: Pick<Distribution, 'persons'>, costs: Cost
   }
   for (const p of payments) {
     if (p.fromPersonId === p.toPersonId) continue
-    get(p.fromPersonId).sentCents += p.amountCents
-    get(p.toPersonId).receivedCents += p.amountCents
+    if (p.kind === 'advance') {
+      get(p.fromPersonId).advanceSentCents += p.amountCents
+      get(p.toPersonId).advanceReceivedCents += p.amountCents
+    } else {
+      get(p.fromPersonId).sentCents += p.amountCents
+      get(p.toPersonId).receivedCents += p.amountCents
+    }
   }
-  const balances = [...map.values()].map((b) => ({ ...b, balanceCents: b.paidCents - b.shareCents + b.sentCents - b.receivedCents }))
+  const balances = [...map.values()].map((b) => ({ ...b, balanceCents: b.paidCents - b.shareCents + b.advanceSentCents - b.advanceReceivedCents + b.sentCents - b.receivedCents }))
   const residualCents = balances.reduce((s, b) => s + b.balanceCents, 0)
   return { balances, transfers: suggestTransfers(balances), unpaidCostCents, residualCents }
 }

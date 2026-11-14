@@ -28,6 +28,7 @@ const tripSchema = z.object({
   updatedBy: z.string().optional(),
 })
 const categorySchema = z.object({ id: z.string().min(1), name: z.string().min(1), builtin: z.boolean(), color: z.string(), updatedAt: stamp.optional() })
+const recurrenceSchema = z.object({ frequency: z.enum(['monthly', 'yearly']), count: z.number().int().positive().optional(), until: isoDate.optional() })
 const expenseSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
@@ -36,9 +37,7 @@ const expenseSchema = z.object({
   date: isoDate,
   allocation: z.enum(['perKm', 'direct']),
   directPersonIds: z.array(z.string()).optional(),
-  recurrence: z
-    .object({ frequency: z.enum(['monthly', 'yearly']), count: z.number().int().positive().optional(), until: isoDate.optional() })
-    .optional(),
+  recurrence: recurrenceSchema.optional(),
   spreadMonths: z.number().int().min(1).max(120).optional(),
   paidBy: z.string().optional(),
   note: z.string().optional(),
@@ -49,10 +48,12 @@ const expenseSchema = z.object({
 })
 const paymentSchema = z.object({
   id: z.string().min(1),
+  kind: z.enum(['advance', 'settlement']).optional(),
   date: isoDate,
   fromPersonId: z.string().min(1),
   toPersonId: z.string().min(1),
   amountCents: z.number().int().positive(),
+  recurrence: recurrenceSchema.optional(),
   note: z.string().optional(),
   createdAt: stamp,
   updatedAt: stamp,

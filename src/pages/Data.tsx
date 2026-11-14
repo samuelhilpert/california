@@ -157,7 +157,7 @@ export function DataPage() {
             <dl className="grid grid-cols-2 gap-y-2 text-sm">
               <dt className="text-slate-500">Fahrten</dt><dd className="tabular text-right font-medium">{data.trips.length}</dd>
               <dt className="text-slate-500">Ausgaben</dt><dd className="tabular text-right font-medium">{data.expenses.length}</dd>
-              <dt className="text-slate-500">Ausgleichszahlungen</dt><dd className="tabular text-right font-medium">{data.payments.length}</dd>
+              <dt className="text-slate-500">Zahlungen</dt><dd className="tabular text-right font-medium">{data.payments.length}</dd>
               <dt className="text-slate-500">Abgeschlossene Abrechnungen</dt><dd className="tabular text-right font-medium">{data.settlements.length}</dd>
               <dt className="text-slate-500">Personen</dt><dd className="tabular text-right font-medium">{data.persons.length}</dd>
               <dt className="text-slate-500">Mitglieder</dt><dd className="tabular text-right font-medium">{memberEmails.length}</dd>

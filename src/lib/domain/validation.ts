@@ -1,5 +1,5 @@
 import { isIsoDate } from './dates'
-import type { Expense, FuelFill, Plan, Trip } from './types'
+import type { Expense, FuelFill, Payment, Plan, Recurrence, Trip } from './types'
 
 export type FieldErrors = Record<string, string>
 
@@ -81,22 +81,24 @@ export function validateExpense(d: Partial<ExpenseDraft>): FieldErrors {
   if (d.allocation === 'direct' && (!d.directPersonIds || d.directPersonIds.length === 0)) {
     e.directPersonIds = 'Bitte mindestens eine Person wählen, auf die diese Kosten verteilt werden.'
   }
-  if (d.recurrence) {
-    const r = d.recurrence
-    if (r.count != null && (!Number.isInteger(r.count) || r.count < 1 || r.count > 1200)) e.recurrenceCount = 'Anzahl muss zwischen 1 und 1200 liegen.'
-    if (r.until != null) {
-      if (!isIsoDate(r.until)) e.recurrenceUntil = 'Bitte ein gültiges Enddatum angeben.'
-      else if (d.date && r.until < d.date) e.recurrenceUntil = 'Das Enddatum liegt vor der ersten Fälligkeit.'
-    }
-  }
+  checkRecurrence(d.recurrence, d.date, e)
   return e
+}
+
+function checkRecurrence(r: Recurrence | undefined, start: string | undefined, e: FieldErrors) {
+  if (!r) return
+  if (r.count != null && (!Number.isInteger(r.count) || r.count < 1 || r.count > 1200)) e.recurrenceCount = 'Anzahl muss zwischen 1 und 1200 liegen.'
+  if (r.until != null) {
+    if (!isIsoDate(r.until)) e.recurrenceUntil = 'Bitte ein gültiges Enddatum angeben.'
+    else if (start && r.until < start) e.recurrenceUntil = 'Das Enddatum liegt vor der ersten Fälligkeit.'
+  }
 }
 
 export function hasErrors(e: FieldErrors): boolean {
   return Object.keys(e).length > 0
 }
 
-export type PaymentDraft = Omit<import('./types').Payment, 'id' | 'createdAt' | 'updatedAt' | 'updatedBy'>
+export type PaymentDraft = Omit<Payment, 'id' | 'createdAt' | 'updatedAt' | 'updatedBy'>
 
 export function validatePayment(d: Partial<PaymentDraft>): FieldErrors {
   const e: FieldErrors = {}
@@ -106,5 +108,7 @@ export function validatePayment(d: Partial<PaymentDraft>): FieldErrors {
   if (d.fromPersonId && d.fromPersonId === d.toPersonId) e.toPersonId = 'Zahler und Empfänger müssen verschiedene Personen sein.'
   if (d.amountCents == null || !Number.isInteger(d.amountCents) || d.amountCents <= 0) e.amountCents = 'Bitte einen positiven Betrag eingeben.'
   else if (d.amountCents > 100_000_000) e.amountCents = 'Der Betrag ist unplausibel hoch.'
+  if (d.recurrence && d.kind !== 'advance') e.recurrence = 'Nur Vorauszahlungen können als Dauerauftrag wiederholt werden.'
+  checkRecurrence(d.recurrence, d.date, e)
   return e
 }

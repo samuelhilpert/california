@@ -53,7 +53,7 @@ export type Allocation = 'perKm' | 'direct'
 
 export type Frequency = 'monthly' | 'yearly'
 
-interface Recurrence {
+export interface Recurrence {
   frequency: Frequency
   /** Anzahl der Fälligkeiten (z. B. 24 Leasingraten). Leer = unbegrenzt. */
   count?: number
@@ -125,17 +125,43 @@ export interface Plan {
   updatedBy?: string
 }
 
-/** Ausgleichszahlung zwischen zwei Personen. */
+/**
+ * advance    = Vorauszahlung (Abschlag), z. B. monatlich an die Person, die die Leasingrate zahlt.
+ * settlement = Ausgleichszahlung nach einer Abrechnung.
+ * Beide zählen gleich im Saldo; die Art dient nur der Darstellung.
+ */
+export type PaymentKind = 'advance' | 'settlement'
+
+/** Zahlung zwischen zwei Personen – einmalig oder als Dauerauftrag. */
 export interface Payment {
   id: string
+  /** Leer = Ausgleichszahlung (Daten von vor der Einführung der Vorauszahlungen). */
+  kind?: PaymentKind
+  /** Datum bzw. erste Fälligkeit. */
+  date: IsoDate
+  fromPersonId: string
+  toPersonId: string
+  /** Betrag in Cent, bei Daueraufträgen je Fälligkeit. */
+  amountCents: number
+  recurrence?: Recurrence
+  note?: string
+  createdAt: string
+  updatedAt: string
+  updatedBy?: string
+}
+
+/** Eine einzelne, konkrete Zahlung (einmalig oder eine Fälligkeit eines Dauerauftrags). */
+export interface PaymentEntry {
+  /** Eindeutig und stabil: `<paymentId>` oder `<paymentId>#<Periode>`. */
+  id: string
+  paymentId: string
+  period?: string
+  kind: PaymentKind
   date: IsoDate
   fromPersonId: string
   toPersonId: string
   amountCents: number
   note?: string
-  createdAt: string
-  updatedAt: string
-  updatedBy?: string
 }
 
 /** Eine einzelne, konkrete Kostenbuchung (einmalig oder eine Fälligkeit einer wiederkehrenden Ausgabe). */

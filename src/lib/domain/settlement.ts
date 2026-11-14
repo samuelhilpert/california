@@ -12,11 +12,11 @@
  */
 import { allocateCents } from './allocate'
 import { inRange, resolvePeriod, samePeriod, type DateRange, type PeriodSpec } from './period'
-import { expandExpenses } from './recurrence'
+import { expandExpenses, expandPayments } from './recurrence'
 import { maxDate } from './dates'
 import { computeBalances, type BalanceResult } from './balance'
 import { findOdometerIssues, type OdometerIssue } from './tripChecks'
-import type { CostEntry, Expense, IsoDate, Payment, Person, Trip } from './types'
+import type { CostEntry, Expense, IsoDate, Payment, PaymentEntry, Person, Trip } from './types'
 import { formatDate, formatEuro, formatKm } from '../format'
 
 export type TripLike = Pick<Trip, 'id' | 'startDate' | 'km' | 'personIds'> &
@@ -259,10 +259,10 @@ export interface Settlement extends Distribution {
   actualTripSpan: DateRange
   actualCostSpan: DateRange
   notices: Notice[]
-  /** Ausgleich: bezahlte Kosten, Anteile, Ausgleichszahlungen (Zahlungen im Fahrtenzeitraum). */
+  /** Ausgleich: bezahlte Kosten, Anteile, Vorauszahlungen und Ausgleichszahlungen (Zahlungen im Fahrtenzeitraum). */
   balance: BalanceResult
-  /** Ausgleichszahlungen im Zeitraum. */
-  payments: Payment[]
+  /** Einzelzahlungen im Zeitraum (Daueraufträge je Fälligkeit). */
+  payments: PaymentEntry[]
   /** Kilometerlücken/-überschneidungen, deren folgende Fahrt im Zeitraum liegt. */
   odometerIssues: OdometerIssue[]
 }
@@ -375,7 +375,19 @@ export function buildSettlement(input: SettlementInput, options: SettlementOptio
     })
   }
 
-  const payments = (input.payments ?? []).filter((p) => inRange(p.date, tripRange))
+  // Daueraufträge ohne Ende laufen wie unbefristete Kosten bis zum Zeitraumende bzw. bis heute.
+  const paymentHorizon = tripRange.to ?? maxDate(options.today, latestTrip)
+  const payments = expandPayments(input.payments ?? [], paymentHorizon)
+    .filter((p) => inRange(p.date, tripRange))
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+  const futureAdvances = payments.filter((p) => p.kind === 'advance' && p.date > options.today)
+  if (futureAdvances.length > 0) {
+    notices.push({
+      level: 'info',
+      code: 'future-advances',
+      message: `${futureAdvances.length} Vorauszahlung(en) über ${formatEuro(sum(futureAdvances.map((p) => p.amountCents)))} liegen in der Zukunft (noch ausstehende Abschläge) und sind im Ausgleich enthalten.`,
+    })
+  }
   const balance = computeBalances(dist, costs, payments)
 
   return {

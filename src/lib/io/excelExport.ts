@@ -163,18 +163,18 @@ export function buildSettlementWorkbook(s: Settlement, data: { persons: Person[]
   // Ausgleich
   const bal = s.balance
   const balanceRows: CellValue[][] = [
-    ['Person', 'Bezahlt', 'Kostenanteil', 'Ausgleich gezahlt', 'Ausgleich erhalten', 'Saldo (+ bekommt / − zahlt)'],
-    ...bal.balances.map((b) => [pm.get(b.personId)?.name ?? 'Unbekannt', eur(b.paidCents), eur(b.shareCents), eur(b.sentCents), eur(b.receivedCents), eur(b.balanceCents)]),
+    ['Person', 'Bezahlt', 'Kostenanteil', 'Vorauszahlung gezahlt', 'Vorauszahlung erhalten', 'Ausgleich gezahlt', 'Ausgleich erhalten', 'Saldo (+ bekommt / − zahlt)'],
+    ...bal.balances.map((b) => [pm.get(b.personId)?.name ?? 'Unbekannt', eur(b.paidCents), eur(b.shareCents), eur(b.advanceSentCents), eur(b.advanceReceivedCents), eur(b.sentCents), eur(b.receivedCents), eur(b.balanceCents)]),
     [],
     ['Vorgeschlagene Ausgleichszahlungen'],
     ...(bal.transfers.length ? bal.transfers.map((t) => [`${pm.get(t.fromPersonId)?.name ?? '?'} → ${pm.get(t.toPersonId)?.name ?? '?'}`, eur(t.amountCents)]) : [['Keine – alle Salden sind ausgeglichen.']]),
   ]
   if (bal.unpaidCostCents) balanceRows.push([], ['Kosten ohne angegebenen Zahler', eur(bal.unpaidCostCents)])
   if (s.payments.length) {
-    balanceRows.push([], ['Erfasste Ausgleichszahlungen im Zeitraum'], ['Datum', 'Von', 'An', 'Betrag', 'Notiz'])
-    for (const p of s.payments) balanceRows.push([date(p.date), pm.get(p.fromPersonId)?.name ?? '?', pm.get(p.toPersonId)?.name ?? '?', eur(p.amountCents), p.note ?? null])
+    balanceRows.push([], ['Zahlungen im Zeitraum'], ['Datum', 'Art', 'Von', 'An', 'Betrag', 'Notiz'])
+    for (const p of s.payments) balanceRows.push([date(p.date), p.kind === 'advance' ? 'Vorauszahlung' : 'Ausgleich', pm.get(p.fromPersonId)?.name ?? '?', pm.get(p.toPersonId)?.name ?? '?', eur(p.amountCents), p.note ?? null])
   }
-  XLSX.utils.book_append_sheet(wb, sheet(balanceRows, [26, 14, 14, 16, 16, 24]), 'Ausgleich')
+  XLSX.utils.book_append_sheet(wb, sheet(balanceRows, [26, 14, 14, 20, 20, 16, 16, 24]), 'Ausgleich')
 
   // Fahrten
   const tripRows: CellValue[][] = [['Datum', 'Bis', 'Strecke', 'Kilometer', 'Fahrtkosten', 'Beteiligte', 'Person', 'Anteilige km', 'Anteil']]

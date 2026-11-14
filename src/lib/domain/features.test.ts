@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { computeBalances, suggestTransfers } from './balance'
-import { expandExpense } from './recurrence'
+import { expandExpense, expandPayments } from './recurrence'
 import { buildSettlement, computeDistribution } from './settlement'
 import { findOdometerIssues, findSimilarTrips } from './tripChecks'
 import type { CostEntry, Expense, Payment, Person, Trip } from './types'
@@ -29,7 +29,7 @@ describe('Ausgleich: wer hat was bezahlt', () => {
     ])
   })
   it('erfasste Ausgleichszahlungen gleichen Salden aus', () => {
-    const r = computeBalances(dist, [cost(30000, 'a')], [pay('b', 'a', 10000)])
+    const r = computeBalances(dist, [cost(30000, 'a')], expandPayments([pay('b', 'a', 10000)], '2026-12-31'))
     const by = Object.fromEntries(r.balances.map((b) => [b.personId, b.balanceCents]))
     expect(by).toEqual({ a: 10000, b: 0, c: -10000 })
     expect(r.transfers).toEqual([{ fromPersonId: 'c', toPersonId: 'a', amountCents: 10000 }])
