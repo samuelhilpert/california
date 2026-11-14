@@ -10,6 +10,7 @@ import { balanceBreakdown, type BalanceBreakdown } from '../lib/domain/breakdown
 import { formatDate, formatEuro, formatKm, formatPricePerKm } from '../lib/format'
 import { Button, Card, CardTitle, Notice } from './ui'
 import { PaymentModal } from './PaymentModal'
+import { fixedPriceExplanation } from './fixedPriceText'
 import { errorMessage, useFeedback } from './feedback-context'
 
 /** Einzelzahlungen im Zeitraum, je Zahlung bzw. Dauerauftrag zusammengefasst. */
@@ -239,9 +240,7 @@ function BreakdownTable({ breakdown, name }: { breakdown: BalanceBreakdown; name
         return ['Kilometerkosten', `${formatKm(l.km)} × ${formatPricePerKm(l.pricePerKm)}`]
       case 'fixed': {
         const trip = [formatDate(l.date), l.to].filter(Boolean).join(' · ')
-        return l.guest
-          ? [`Festpreis-Fahrt ${trip}`]
-          : [`Festpreis von ${l.guestIds.map(name).join(', ')}`, `Fahrt ${trip} · die km sind in den Kilometerkosten enthalten`]
+        return [l.role === 'guest' ? `Festpreis-Fahrt ${trip}` : `Gastfahrt ${l.guestIds.map(name).join(', ')} · ${trip}`, fixedPriceExplanation(l)]
       }
       case 'direct':
         return [`Direktkosten: ${l.title}`, [`geteilt durch ${l.sharedBy}`, times(l.count)].filter(Boolean).join(' · ')]

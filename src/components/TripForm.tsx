@@ -60,7 +60,7 @@ function TripForm({ onClose, trip, persons, trips, settlements = [], prefill, on
   const [kmOnly, setKmOnly] = useState(init != null && init.km != null && init.odoStart == null && init.odoEnd == null)
   // Neue Fahrt: Wer sie einträgt, ist meist auch gefahren.
   const [personIds, setPersonIds] = useState<string[]>(init?.personIds ?? (!init && me ? [me.id] : []))
-  // Festpreis (nur Gäste): Kilometer und Fahrtkosten gehen an die Empfänger, die dafür den Festpreis bekommen
+  // Festpreis (nur Gäste): Die Empfänger bekommen den Festpreis und tragen dafür die Kosten der Fahrt nach km
   const [fixed, setFixed] = useState(init?.fixedPriceCents != null)
   const [fixedAmount, setFixedAmount] = useState(centsToInput(init?.fixedPriceCents))
   const [recipientIds, setRecipientIds] = useState<string[]>(init?.fixedPriceRecipientIds ?? [])
@@ -250,7 +250,7 @@ function TripForm({ onClose, trip, persons, trips, settlements = [], prefill, on
             <span>
               <span className="font-medium">Festpreis statt Abrechnung nach km</span>
               <span className="block text-xs text-slate-500">
-                {memberDrove && !fixed ? 'Nur möglich, wenn kein registriertes Mitglied gefahren ist (z. B. bei Gästen).' : 'Die Fahrenden zahlen einen festen Betrag. Kilometer und Fahrtkosten werden stattdessen den ausgewählten Personen angerechnet, die dafür den Festpreis bekommen.'}
+                {memberDrove && !fixed ? 'Nur möglich, wenn kein registriertes Mitglied gefahren ist (z. B. bei Gästen).' : 'Die Fahrenden zahlen einen festen Betrag. Die ausgewählten Personen bekommen ihn und tragen dafür die Kosten der Fahrt nach km – unterm Strich die Differenz.'}
               </span>
             </span>
           </label>
@@ -260,13 +260,11 @@ function TripForm({ onClose, trip, persons, trips, settlements = [], prefill, on
               <Field label="Festpreis" htmlFor="t-fixed" error={errors.fixedPriceCents} className="sm:max-w-[50%]">
                 <Input id="t-fixed" inputMode="decimal" value={fixedAmount} onChange={(e) => setFixedAmount(e.target.value)} suffix="€" placeholder="0,00" invalid={!!errors.fixedPriceCents} />
               </Field>
-              <Field label="Wer bekommt die Kilometer und das Geld?" error={errors.fixedPriceRecipientIds} hint="Kilometer und Festpreis werden zu gleichen Teilen verteilt.">
+              <Field label="Wer bekommt den Festpreis?" error={errors.fixedPriceRecipientIds} hint="Festpreis und Fahrtkosten werden zu gleichen Teilen verteilt. In der Abrechnung erscheint die Differenz zwischen Kosten nach km und Festpreis.">
                 <PersonMultiSelect persons={recipientCandidates} value={recipients} onChange={setRecipientIds} invalid={!!errors.fixedPriceRecipientIds} label="Empfänger des Festpreises" />
               </Field>
-              {km != null && km > 0 && fixedCents != null && fixedCents > 0 && recipients.length > 0 && (
-                <p className="text-sm text-slate-600">
-                  Je ausgewählte Person: {formatKm(km / recipients.length)} angerechnet und {formatEuro(Math.floor(fixedCents / recipients.length))}{fixedCents % recipients.length ? ' (± 1 Cent)' : ''} gutgeschrieben.
-                </p>
+              {fixedCents != null && fixedCents > 0 && recipients.length > 1 && (
+                <p className="text-sm text-slate-600">Je ausgewählte Person {formatEuro(Math.floor(fixedCents / recipients.length))}{fixedCents % recipients.length ? ' (± 1 Cent)' : ''} vom Festpreis.</p>
               )}
             </>
           )}

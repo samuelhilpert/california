@@ -12,6 +12,7 @@ import { PeriodPicker } from '../components/PeriodPicker'
 import { collectYears } from '../lib/years'
 import { Loading } from '../components/Loading'
 import { BalancePanel } from '../components/BalancePanel'
+import { fixedPriceExplanation, fixedPriceSummary } from '../components/fixedPriceText'
 import { CloseSettlementButton, SettlementSnapshotList } from '../components/SettlementSnapshots'
 import { errorMessage, useFeedback } from '../components/feedback-context'
 import { PersonChip } from '../components/Person'
@@ -193,17 +194,16 @@ export function SettlementPage() {
                                         <td className="whitespace-nowrap px-3 py-2">{formatDate(trip?.startDate)}</td>
                                         <td className="px-3 py-2 text-slate-600">
                                           {[trip?.from, trip?.to].filter(Boolean).join(' → ') || '–'}
-                                          {sh.fixedCents != null && (
+                                          {sh.fixed && (
                                             <div className="text-xs">
-                                              {sh.fixedCents > 0
-                                                ? `Festpreis ${formatEuro(t.fixedPriceCents!)} statt km-Anteil`
-                                                : `Festpreis-Fahrt von ${(trip?.personIds ?? []).map((id) => pName.get(id) ?? '?').join(', ')}: km angerechnet, ${formatEuro(-sh.fixedCents)} gutgeschrieben`}
+                                              {sh.fixed === 'recipient' && `Gastfahrt ${(trip?.personIds ?? []).map((id) => pName.get(id) ?? '?').join(', ')}: `}
+                                              {fixedPriceExplanation({ role: sh.fixed, km: t.km, tripCostCents: t.costCents, fixedPriceCents: t.fixedPriceCents!, splitBy: t.shares.filter((x) => x.fixed === sh.fixed).length })}
                                             </div>
                                           )}
                                         </td>
                                         <td className="tabular px-3 py-2 text-right">{formatKm(t.km)}</td>
                                         <td className="px-3 py-2 text-right" title={t.shares.map((x) => pName.get(x.personId)).join(', ')}>{t.shares.length}</td>
-                                        <td className="tabular px-3 py-2 text-right">{formatKm(sh.km)}</td>
+                                        <td className="tabular px-3 py-2 text-right">{sh.fixed === 'recipient' ? '–' : formatKm(sh.km)}</td>
                                         <td className="tabular px-3 py-2 text-right font-medium">{formatEuro(sh.cents)}</td>
                                       </tr>
                                     )
@@ -284,7 +284,11 @@ export function SettlementPage() {
                         <td className="tabular px-4 py-2.5 text-right">{formatKm(t.km)}</td>
                         <td className="tabular px-4 py-2.5 text-right font-medium">
                           {formatEuro(t.costCents)}
-                          {t.fixedPriceCents != null && <div className="whitespace-nowrap text-xs font-normal text-slate-500">Festpreis {formatEuro(t.fixedPriceCents)}</div>}
+                          {t.fixedPriceCents != null && (
+                            <div className="max-w-48 text-xs font-normal text-slate-500">
+                              {fixedPriceSummary({ tripCostCents: t.costCents, fixedPriceCents: t.fixedPriceCents, recipientNames: t.shares.filter((x) => x.fixed === 'recipient').map((x) => pName.get(x.personId) ?? '?') })}
+                            </div>
+                          )}
                         </td>
                         <td className="px-4 py-2.5">
                           <div className="flex flex-wrap gap-1">

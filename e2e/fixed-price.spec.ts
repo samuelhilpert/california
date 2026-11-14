@@ -8,7 +8,7 @@ import { expectAccessible, expectNoHorizontalOverflow, register, resetEmulators,
 /**
  * Einfaches Festpreis-Beispiel: Leasing 6.500 € (bezahlt von Konrad), Konrad 6.000 km, Dennis 3.000 km,
  * Samuel 600 km. Ein Gast fährt 400 km zum Festpreis von 100 € → Konrad und Dennis.
- * 10.000 km → 0,65 €/km; Gastfahrt kostet 260 € → Konrad und Dennis je 200 km (+130 €) und −50 €.
+ * 10.000 km → 0,65 €/km; Gastfahrt kostet 260 € → Differenz 160 € tragen Konrad und Dennis je zur Hälfte.
  */
 const FILE = resolve(import.meta.dirname, '.tmp', 'Festpreis.json')
 
@@ -71,7 +71,7 @@ test('Festpreis: Gastfahrt mit Festpreis, Anrechnung an Empfänger, nur ohne Mit
   const recipients = dlg.getByRole('group', { name: 'Empfänger des Festpreises' })
   await expect(chip(recipients, 'Gast')).toHaveCount(0) // wer fährt, kann nicht Empfänger sein
   await selectOnly(recipients, ['Konrad', 'Dennis'])
-  await expect(dlg).toContainText('Je ausgewählte Person: 200 km angerechnet und 50,00')
+  await expect(dlg).toContainText(/Je ausgewählte Person 50,00\s€ vom Festpreis/)
   await expectAccessible(page, 'Fahrt mit Festpreis')
   await dlg.getByRole('button', { name: 'Fahrt speichern' }).click()
   await expect(dlg).toHaveCount(0)
@@ -80,10 +80,11 @@ test('Festpreis: Gastfahrt mit Festpreis, Anrechnung an Empfänger, nur ohne Mit
   // --- Abrechnung: 0,65 €/km, Gast trägt genau 100 €
   await page.goto('/#/abrechnung')
   await expect(page.getByText(/0,65\s€\/km/).first()).toBeVisible()
+  await expect(page.getByText(/Festpreis 100,00\s€ · Differenz 160,00\s€ tragen Konrad, Dennis/).first()).toBeVisible()
   const region = page.getByRole('region', { name: 'Salden je Person' })
   const balance = region.locator('table').first()
   const row = (n: string) => balance.locator(':scope > tbody > tr').filter({ has: page.getByRole('button', { name: new RegExp(`^${n}: Rechenweg`) }) })
-  // Konrad: 6.500 − (3.900 + 130 − 50) = +2.520 · Dennis: −(1.950 + 130 − 50) = −2.030 · Samuel −390 · Gast −100
+  // Konrad: 6.500 − (3.900 + 80) = +2.520 · Dennis: −(1.950 + 80) = −2.030 · Samuel −390 · Gast −100
   await expect(row('Konrad')).toContainText('2.520,00')
   await expect(row('Dennis')).toContainText('2.030,00')
   await expect(row('Samuel')).toContainText('390,00')
@@ -94,13 +95,16 @@ test('Festpreis: Gastfahrt mit Festpreis, Anrechnung an Empfänger, nur ohne Mit
   const way = region.locator('table table')
   await row('Gast').click()
   await expect(way).toContainText('Festpreis-Fahrt 01.05.2026')
+  await expect(way).toContainText(/nach km wären es 260,00\s€ gewesen/)
   await expect(way.locator('tfoot')).toContainText('−100,00')
   await row('Gast').click()
   await row('Dennis').click()
-  await expect(way).toContainText(/3\.200 km × 0,65\s€\/km/)
-  await expect(way).toContainText('−2.080,00')
-  await expect(way).toContainText('Festpreis von Gast')
-  await expect(way).toContainText('+50,00')
+  // Dennis ist nur seine eigenen 3.000 km gefahren – die Gastfahrt erscheint als Differenz
+  await expect(way).toContainText(/3\.000 km × 0,65\s€\/km/)
+  await expect(way).toContainText('−1.950,00')
+  await expect(way).toContainText('Gastfahrt Gast · 01.05.2026')
+  await expect(way).toContainText(/400 km nach km 260,00\s€ − Festpreis 100,00\s€ = 160,00\s€ Differenz, geteilt durch 2/)
+  await expect(way).toContainText('−80,00')
   await expect(way.locator('tfoot')).toContainText('−2.030,00')
   await expectNoHorizontalOverflow(page)
   await expectAccessible(page, 'Abrechnung mit Festpreis')

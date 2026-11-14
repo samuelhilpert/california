@@ -1,6 +1,7 @@
 /**
- * Festpreis-Fahrten (Gäste): Die Fahrenden tragen den Festpreis, Kilometer und Fahrtkosten gehen an die
- * ausgewählten Empfänger, die dafür den Festpreis gutgeschrieben bekommen – beides zu gleichen Teilen.
+ * Festpreis-Fahrten (Gäste): Die Fahrenden tragen den Festpreis; die ausgewählten Empfänger bekommen ihn
+ * und tragen dafür die Fahrtkosten nach km – unterm Strich die Differenz, zu gleichen Teilen.
+ * Kilometer werden nur dort angezeigt, wo tatsächlich gefahren wurde.
  * Grundlage der Beispiele: 6.500 € km-Kosten auf 10.000 km = 0,65 €/km.
  */
 import * as XLSX from 'xlsx'
@@ -10,6 +11,7 @@ import { addPerson, saveExpense, saveTrip, ValidationError } from '../store/repo
 import { createBackup, parseBackup, restoreBackup } from '../io/backup'
 import { buildDataWorkbook, buildSettlementWorkbook, workbookToArray } from '../io/excelExport'
 import { balanceBreakdown } from './breakdown'
+import { fixedPriceExplanation, fixedPriceSummary } from '../../components/fixedPriceText'
 import { buildSettlement, computeDistribution, type TripLike } from './settlement'
 import { validateTrip } from './validation'
 import type { CostEntry } from './types'
@@ -29,29 +31,30 @@ describe('Beispiel 1: Gast zahlt weniger, als die Fahrt kostet', () => {
     expect(d.totalKm).toBe(10000)
     expect(d.pricePerKm).toBeCloseTo(0.65, 10)
   })
-  it('die Fahrt kostet 260 €: Gast 100 €, Konrad und Dennis je 200 km und netto +80 €', () => {
+  it('die Fahrt kostet 260 €: Gast 100 €, Konrad und Dennis tragen je die Hälfte der Differenz (80 €)', () => {
     const t = d.trips.find((x) => x.tripId === '2')!
     expect(t.costCents).toBe(26000)
     expect(t.fixedPriceCents).toBe(10000)
     expect(t.shares).toEqual([
-      { personId: 'gast', km: 0, cents: 10000, fixedCents: 10000 },
-      { personId: 'k', km: 200, cents: 8000, fixedCents: -5000 },
-      { personId: 'd', km: 200, cents: 8000, fixedCents: -5000 },
+      { personId: 'gast', km: 400, cents: 10000, fixed: 'guest' },
+      { personId: 'k', km: 0, cents: 8000, fixed: 'recipient' },
+      { personId: 'd', km: 0, cents: 8000, fixed: 'recipient' },
     ])
   })
-  it('Personensummen: Gast trägt genau den Festpreis, Rest verteilt sich exakt', () => {
-    expect(person(d, 'gast')).toMatchObject({ km: 0, perKmCents: 0, fixedCents: 10000, totalCents: 10000, tripCount: 1 })
-    expect(person(d, 'd')).toMatchObject({ km: 200, perKmCents: 13000, fixedCents: -5000, totalCents: 8000, tripCount: 0 })
-    expect(person(d, 'k')).toMatchObject({ km: 9800, perKmCents: 624000 + 13000, fixedCents: -5000, totalCents: 632000 })
+  it('Personensummen: km nur für tatsächlich Gefahrenes; Gast trägt genau den Festpreis', () => {
+    expect(person(d, 'gast')).toMatchObject({ km: 400, perKmCents: 0, fixedCents: 10000, totalCents: 10000, tripCount: 1 })
+    expect(person(d, 'd')).toMatchObject({ km: 0, perKmCents: 0, fixedCents: 8000, totalCents: 8000, tripCount: 0 })
+    expect(person(d, 'k')).toMatchObject({ km: 9600, perKmCents: 624000, fixedCents: 8000, totalCents: 632000 })
+    expect(d.persons.reduce((a, p) => a + p.km, 0)).toBe(10000)
     expect(d.distributedCents).toBe(650000)
   })
 })
 
 describe('Beispiel 2: Festpreis höher als die Fahrtkosten', () => {
   const d = computeDistribution([T('1', 9900, ['k']), T('2', 100, ['gast'], { cents: 10000, to: ['k'] })], costs())
-  it('Konrad: +65 € Fahrtkosten −100 € Festpreis = 35 € Gewinn', () => {
+  it('Konrad: 65 € Fahrtkosten − 100 € Festpreis = 35 € Überschuss', () => {
     const t = d.trips.find((x) => x.tripId === '2')!
-    expect(t.shares.find((x) => x.personId === 'k')).toEqual({ personId: 'k', km: 100, cents: 6500 - 10000, fixedCents: -10000 })
+    expect(t.shares.find((x) => x.personId === 'k')).toEqual({ personId: 'k', km: 0, cents: -3500, fixed: 'recipient' })
     expect(person(d, 'k').totalCents).toBe(650000 - 10000)
     expect(person(d, 'gast').totalCents).toBe(10000)
     expect(d.distributedCents).toBe(650000)
@@ -60,23 +63,21 @@ describe('Beispiel 2: Festpreis höher als die Fahrtkosten', () => {
 
 describe('Beispiel 3: drei Empfänger, Cent-Rundung', () => {
   const d = computeDistribution([T('1', 9600, ['k']), T('2', 400, ['gast'], { cents: 15000, to: ['k', 'd', 's'] })], costs())
-  it('260 € und 150 € werden centgenau gedrittelt, Summe bleibt exakt', () => {
+  it('Differenz 110 € wird centgenau gedrittelt, Summe bleibt exakt', () => {
     const t = d.trips.find((x) => x.tripId === '2')!
-    const r = t.shares.filter((x) => x.personId !== 'gast')
-    expect(r.map((x) => x.cents - x.fixedCents!).sort()).toEqual([8666, 8667, 8667])
-    expect(r.map((x) => -x.fixedCents!)).toEqual([5000, 5000, 5000])
+    const r = t.shares.filter((x) => x.fixed === 'recipient')
     expect(r.map((x) => x.cents).sort()).toEqual([3666, 3667, 3667])
     expect(t.shares.reduce((a, x) => a + x.cents, 0)).toBe(26000)
-    expect(r.every((x) => Math.abs(x.km - 400 / 3) < 1e-9)).toBe(true)
+    expect(r.every((x) => x.km === 0)).toBe(true)
   })
 })
 
 describe('Beispiel 4: zwei Gäste fahren zusammen', () => {
   const d = computeDistribution([T('1', 9600, ['k']), T('2', 400, ['g1', 'g2'], { cents: 10000, to: ['s'] })], costs())
-  it('Gäste je 50 €, Samuel 400 km (+260 €) und 100 € Gutschrift = +160 €', () => {
-    expect(person(d, 'g1').totalCents).toBe(5000)
-    expect(person(d, 'g2').totalCents).toBe(5000)
-    expect(person(d, 's')).toMatchObject({ km: 400, perKmCents: 26000, fixedCents: -10000, totalCents: 16000 })
+  it('Gäste je 50 € (je 200 km gefahren), Samuel trägt die Differenz 260 € − 100 € = 160 €', () => {
+    expect(person(d, 'g1')).toMatchObject({ km: 200, totalCents: 5000 })
+    expect(person(d, 'g2')).toMatchObject({ km: 200, totalCents: 5000 })
+    expect(person(d, 's')).toMatchObject({ km: 0, perKmCents: 0, fixedCents: 16000, totalCents: 16000 })
   })
   it('ungerader Festpreis: Restcent wird verteilt, Summe stimmt', () => {
     const d2 = computeDistribution([T('1', 9600, ['k']), T('2', 400, ['g1', 'g2'], { cents: 10001, to: ['s'] })], costs())
@@ -92,7 +93,7 @@ describe('Sonderfälle', () => {
   })
   it('derselbe Gast mit einer Festpreis- und einer km-Fahrt', () => {
     const d = computeDistribution([T('1', 9200, ['k']), T('2', 400, ['gast'], { cents: 10000, to: ['k'] }), T('3', 400, ['gast'])], costs())
-    expect(person(d, 'gast')).toMatchObject({ km: 400, perKmCents: 26000, fixedCents: 10000, totalCents: 36000, tripCount: 2 })
+    expect(person(d, 'gast')).toMatchObject({ km: 800, perKmCents: 26000, fixedCents: 10000, totalCents: 36000, tripCount: 2 })
     expect(d.distributedCents).toBe(650000)
   })
   it('ohne km-Kosten: der Festpreis ist reine Einnahme der Empfänger', () => {
@@ -177,11 +178,14 @@ describe('mit gespeicherten Daten: Ausgleich, Rechenweg, Backup, Excel', () => {
   it('Rechenweg: Gast und Empfänger, die Zeilen ergeben den Saldo', () => {
     const s = settle()
     const g = balanceBreakdown(s, G)
-    expect(g.lines).toEqual([{ type: 'fixed', tripId: expect.any(String), date: '2027-03-01', to: 'Gardasee', guest: true, guestIds: [G], cents: -10000 }])
+    expect(g.lines).toEqual([{ type: 'fixed', role: 'guest', tripId: expect.any(String), date: '2027-03-01', to: 'Gardasee', km: 400, tripCostCents: 26000, fixedPriceCents: 10000, splitBy: 1, guestIds: [G], cents: -10000 }])
+    // Dennis ist nicht gefahren: keine Kilometerzeile, nur sein Anteil an der Differenz
     const d = balanceBreakdown(s, D)
-    expect(d.lines.map((l) => [l.type, l.cents])).toEqual([['perKm', -13000], ['fixed', 5000]])
-    expect(d.totalCents).toBe(-8000)
-    expect(balanceBreakdown(s, K).totalCents).toBe(18000)
+    expect(d.lines).toEqual([{ type: 'fixed', role: 'recipient', tripId: expect.any(String), date: '2027-03-01', to: 'Gardasee', km: 400, tripCostCents: 26000, fixedPriceCents: 10000, splitBy: 2, guestIds: [G], cents: -8000 }])
+    const k = balanceBreakdown(s, K)
+    expect(k.lines.map((l) => [l.type, l.cents])).toEqual([['paid', 650000], ['perKm', -624000], ['fixed', -8000]])
+    expect(k.lines.find((l) => l.type === 'perKm')).toMatchObject({ km: 9600 })
+    expect(k.totalCents).toBe(18000)
   })
 
   it('Backup sichert Festpreis und Empfänger; Zusammenführen ordnet Empfänger gleichnamigen Personen zu', async () => {
@@ -212,10 +216,30 @@ describe('mit gespeicherten Daten: Ausgleich, Rechenweg, Backup, Excel', () => {
 
     const wb2 = XLSX.read(workbookToArray(buildSettlementWorkbook(settle(), data, { trips: 'Gesamt', costs: 'Gesamt' })), { type: 'array' })
     const shares = XLSX.utils.sheet_to_json<unknown[]>(wb2.Sheets['Personenanteile'], { header: 1 })
-    expect(shares[0][6]).toMatch(/Festpreise/)
-    expect(shares.find((r) => r[0] === 'Gast')!.slice(3)).toEqual([0, 0, 0, 100, 100])
-    expect(shares.find((r) => r[0] === 'Summe')![6]).toBe(0)
+    expect(shares[0][6]).toMatch(/Festpreis-Fahrten/)
+    expect(shares.find((r) => r[0] === 'Gast')!.slice(3)).toEqual([400, 0, 0, 100, 100])
+    expect(shares.find((r) => r[0] === 'Dennis')!.slice(3)).toEqual([0, 0, 0, 80, 80])
+    expect(shares.find((r) => r[0] === 'Summe')![6]).toBe(260)
     const rows = XLSX.utils.sheet_to_json<unknown[]>(wb2.Sheets['Fahrten'], { header: 1 })
     expect(rows.find((r) => r[5] === 100)).toBeTruthy()
+  })
+})
+
+describe('Erklärungstexte', () => {
+  const nb = (x: string) => x.replace(/\s/g, ' ')
+  it('Empfänger: Differenz statt angerechneter Kilometer', () => {
+    expect(nb(fixedPriceExplanation({ role: 'recipient', km: 1000, tripCostCents: 58559, fixedPriceCents: 50000, splitBy: 3 })))
+      .toBe('1.000 km nach km 585,59 € − Festpreis 500,00 € = 85,59 € Differenz, geteilt durch 3')
+    expect(nb(fixedPriceExplanation({ role: 'recipient', km: 100, tripCostCents: 6500, fixedPriceCents: 10000, splitBy: 1 })))
+      .toBe('100 km nach km 65,00 € − Festpreis 100,00 € = 35,00 € Überschuss')
+  })
+  it('Gast: Vergleich mit den Kosten nach km', () => {
+    expect(nb(fixedPriceExplanation({ role: 'guest', km: 400, tripCostCents: 26000, fixedPriceCents: 10000, splitBy: 2 })))
+      .toBe('Festpreis 100,00 €, geteilt durch 2 · nach km wären es 260,00 € gewesen')
+  })
+  it('Kurzfassung für die Fahrtaufschlüsselung (Einzahl/Mehrzahl, Überschuss)', () => {
+    expect(nb(fixedPriceSummary({ tripCostCents: 26000, fixedPriceCents: 10000, recipientNames: ['Dennis'] }))).toBe('Festpreis 100,00 € · Differenz 160,00 € trägt Dennis')
+    expect(nb(fixedPriceSummary({ tripCostCents: 26000, fixedPriceCents: 10000, recipientNames: ['Konrad', 'Dennis'] }))).toBe('Festpreis 100,00 € · Differenz 160,00 € tragen Konrad, Dennis')
+    expect(nb(fixedPriceSummary({ tripCostCents: 6500, fixedPriceCents: 10000, recipientNames: ['Konrad'] }))).toBe('Festpreis 100,00 € · Überschuss 35,00 € geht an Konrad')
   })
 })

@@ -155,7 +155,7 @@ export function buildSettlementWorkbook(s: Settlement, data: { persons: Person[]
 
   // Personenanteile
   const personSheet: CellValue[][] = [
-    ['Person', 'Status', 'Fahrten', 'Anteilige Kilometer', 'Anteil Kilometerkosten', 'Anteil Direktkosten', 'Festpreise (+ getragen / − erhalten)', 'Kostenanteil gesamt'],
+    ['Person', 'Status', 'Fahrten', 'Anteilige Kilometer', 'Anteil Kilometerkosten', 'Anteil Direktkosten', 'Festpreis-Fahrten (Gast: Festpreis, Empfänger: Differenz)', 'Kostenanteil gesamt'],
     ...rows.map((r) => [r.name, r.active ? 'aktiv' : 'deaktiviert', r.tripCount, km(r.km), eur(r.perKmCents), eur(r.directCents), eur(r.fixedCents), eur(r.totalCents)]),
     ['Summe', null, null, km(rows.reduce((a, r) => a + r.km, 0)), eur(rows.reduce((a, r) => a + r.perKmCents, 0)), eur(rows.reduce((a, r) => a + r.directCents, 0)), eur(rows.reduce((a, r) => a + r.fixedCents, 0)), eur(s.distributedCents)],
   ]

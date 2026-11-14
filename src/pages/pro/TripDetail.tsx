@@ -114,7 +114,7 @@ export function TripDetailModal({ trip, onClose }: { trip: Trip; onClose: () => 
           </ul>
           {trip.fixedPriceCents != null && (
             <p className="mt-2 text-sm text-slate-600">
-              Festpreis {formatEuro(trip.fixedPriceCents)} – Kilometer und Geld gehen an {(trip.fixedPriceRecipientIds ?? []).map((id) => pName.get(id) ?? 'Unbekannt').join(', ')}.
+              Festpreis {formatEuro(trip.fixedPriceCents)} – geht an {(trip.fixedPriceRecipientIds ?? []).map((id) => pName.get(id) ?? 'Unbekannt').join(', ')}, die dafür die Kosten der Fahrt nach km tragen.
             </p>
           )}
         </div>
